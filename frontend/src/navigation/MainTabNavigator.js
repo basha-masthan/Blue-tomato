@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
 import AccountNavigator from './AccountNavigator';
+import OrdersScreen from '../screens/Orders/OrdersScreen';
 
 const PlaceholderScreen = ({ name }) => (
   <View style={styles.container}>
@@ -18,7 +19,6 @@ const PlaceholderScreen = ({ name }) => (
 );
 
 const SearchScreen = () => <PlaceholderScreen name="Search" />;
-const OrdersScreen = () => <PlaceholderScreen name="Orders" />;
 
 const Tab = createBottomTabNavigator();
 

@@ -1,106 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { vendorAPI } from '../../api/client';
+import { useCart } from '../../context/CartContext';
 
-export default function MenuScreen({ navigation }) {
+export default function MenuScreen({ route, navigation }) {
+  const { restaurantId, restaurantName } = route.params || {};
+  const { cart, addItem, removeItem, cartTotal, cartCount } = useCart();
+  
   const [vegOnly, setVegOnly] = useState(false);
-  const [menuQuantities, setMenuQuantities] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [restaurant, setRestaurant] = useState(null);
   const [dishes, setDishes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const restaurant = {
-    name: 'Hotel Paradise',
-    cuisines: 'Biryani, Seafood, Desserts, Indian Gourmet',
-    address: 'Srinagar • 2.5 km away',
-    diningRating: '4.2',
-    deliveryRating: '4.7',
-    deliveryCount: '12k+',
-    costForTwo: '₹350 for two',
-    time: '20-25 mins',
-    offerText: 'FREE DELIVERY on orders above ₹199',
-  };
-
-  // Dynamically load recommended dishes from public API
   useEffect(() => {
-    // Fetch Seafood items to serve as main courses
-    fetch('https://www.themealdb.com/api/json/v1/1/filter.php?c=Seafood')
-      .then(res => res.json())
-      .then(data => {
-        if (data.meals) {
-          // Format dishes with mock prices and details
-          const formatted = data.meals.slice(0, 4).map((meal, index) => {
-            const isVegItem = false; // Seafood is non-veg
-            return {
-              id: meal.idMeal,
-              name: meal.strMeal,
-              price: 199 + (index * 50),
-              rating: (4.5 + (index * 0.1)).toFixed(1),
-              reviews: 120 + (index * 42),
-              desc: `Exquisite gourmet preparation of freshly caught ${meal.strMeal} simmered in signature Mughlai style gravy.`,
-              isVeg: isVegItem,
-              isBestseller: index < 2,
-              category: 'Seafood',
-              thumb: meal.strMealThumb
-            };
-          });
+    if (restaurantId) {
+      fetchMenu();
+    } else {
+      setLoading(false);
+    }
+  }, [restaurantId]);
 
-          // Also fetch dessert items to give a complete Swiggy/Zomato menu!
-          fetch('https://www.themealdb.com/api/json/v1/1/filter.php?c=Dessert')
-            .then(res2 => res2.json())
-            .then(data2 => {
-              if (data2.meals) {
-                const dessertDishes = data2.meals.slice(0, 2).map((meal, index) => {
-                  return {
-                    id: meal.idMeal,
-                    name: meal.strMeal,
-                    price: 80 + (index * 30),
-                    rating: '4.8',
-                    reviews: '340',
-                    desc: `Sweet and delightful authentic house-special ${meal.strMeal} freshly baked to perfection.`,
-                    isVeg: true, // Desserts are veg
-                    isBestseller: true,
-                    category: 'Dessert',
-                    thumb: meal.strMealThumb
-                  };
-                });
-                
-                setDishes([...formatted, ...dessertDishes]);
-              } else {
-                setDishes(formatted);
-              }
-              setLoading(false);
-            })
-            .catch(() => {
-              setDishes(formatted);
-              setLoading(false);
-            });
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(err => {
-        console.error('Error loading menu:', err);
-        setLoading(false);
-      });
-  }, []);
-
-  const handleAdd = (id) => {
-    setMenuQuantities(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  const fetchMenu = async () => {
+    try {
+      setLoading(true);
+      const res = await vendorAPI.getVendorDetails(restaurantId);
+      setRestaurant(res.data.vendor);
+      
+      // Format backend services as dishes
+      const formattedDishes = (res.data.services || []).map((svc) => ({
+        id: svc._id,
+        menuItemId: svc._id, // used by cart
+        name: svc.name,
+        price: svc.price,
+        rating: '4.5',
+        reviews: 100,
+        desc: svc.description || '',
+        isVeg: svc.isVeg || false,
+        isBestseller: svc.isBestseller || false,
+        category: svc.category || 'Main',
+        thumb: svc.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+      }));
+      
+      setDishes(formattedDishes);
+    } catch (err) {
+      console.error('Error fetching menu:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubtract = (id) => {
-    setMenuQuantities(prev => ({ 
-      ...prev, 
-      [id]: (prev[id] || 0) > 0 ? (prev[id] || 0) - 1 : 0 
-    }));
+  const getQty = (id) => {
+    const item = cart.find(i => i.menuItemId === id);
+    return item ? item.quantity : 0;
   };
-
-  const totalItems = Object.values(menuQuantities).reduce((a, b) => a + b, 0);
-  const totalPrice = Object.keys(menuQuantities).reduce((sum, key) => {
-    const dish = dishes.find(d => d.id === key);
-    return sum + ((menuQuantities[key] || 0) * (dish ? dish.price : 0));
-  }, 0);
 
   const filteredDishes = dishes.filter(dish => {
     const matchesVeg = !vegOnly || dish.isVeg;
@@ -108,6 +62,14 @@ export default function MenuScreen({ navigation }) {
                           dish.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesVeg && matchesSearch;
   });
+
+  const displayRestaurant = restaurant || {
+    name: restaurantName || 'Restaurant',
+    cuisines: 'Various',
+    currentAddress: { city: 'Local' },
+    rating: '4.5',
+    time: '30 mins',
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -137,19 +99,19 @@ export default function MenuScreen({ navigation }) {
       >
         {/* Restaurant Info Zomato Card */}
         <View style={styles.restaurantContainer}>
-          <Text style={styles.restaurantName}>{restaurant.name}</Text>
-          <Text style={styles.cuisines}>{restaurant.cuisines}</Text>
-          <Text style={styles.address}>{restaurant.address}</Text>
+          <Text style={styles.restaurantName}>{displayRestaurant.name}</Text>
+          <Text style={styles.cuisines}>{displayRestaurant.cuisines}</Text>
+          <Text style={styles.address}>{displayRestaurant.currentAddress?.city || 'Local'}</Text>
           
           {/* Multi-Rating Box */}
           <View style={styles.ratingBox}>
             <View style={styles.ratingCol}>
               <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>{restaurant.deliveryRating} ★</Text>
+                <Text style={styles.ratingBadgeText}>{displayRestaurant.rating} ★</Text>
               </View>
               <View style={styles.ratingInfo}>
                 <Text style={styles.ratingLabel}>Delivery</Text>
-                <Text style={styles.ratingSub}>{restaurant.deliveryCount} ratings</Text>
+                <Text style={styles.ratingSub}>1k+ ratings</Text>
               </View>
             </View>
             
@@ -157,7 +119,7 @@ export default function MenuScreen({ navigation }) {
 
             <View style={styles.ratingCol}>
               <View style={[styles.ratingBadge, styles.diningBadge]}>
-                <Text style={styles.ratingBadgeText}>{restaurant.diningRating} ★</Text>
+                <Text style={styles.ratingBadgeText}>{displayRestaurant.rating} ★</Text>
               </View>
               <View style={styles.ratingInfo}>
                 <Text style={styles.ratingLabel}>Dining</Text>
@@ -170,18 +132,18 @@ export default function MenuScreen({ navigation }) {
           <View style={styles.logisticsContainer}>
             <View style={styles.logisticItem}>
               <Ionicons name="time" size={16} color="#059669" />
-              <Text style={styles.logisticText}>{restaurant.time}</Text>
+              <Text style={styles.logisticText}>{displayRestaurant.time}</Text>
             </View>
             <View style={styles.logisticItem}>
               <Ionicons name="wallet" size={16} color="#475569" />
-              <Text style={styles.logisticText}>{restaurant.costForTwo}</Text>
+              <Text style={styles.logisticText}>₹350 for two</Text>
             </View>
           </View>
 
           {/* Offer Banner */}
           <View style={styles.offerBanner}>
             <Ionicons name="gift" size={16} color="#DC2626" />
-            <Text style={styles.offerText}>{restaurant.offerText}</Text>
+            <Text style={styles.offerText}>10% OFF on all items</Text>
           </View>
         </View>
 
@@ -193,7 +155,7 @@ export default function MenuScreen({ navigation }) {
               style={styles.menuSearchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={`Search in ${restaurant.name}...`}
+              placeholder={`Search in ${displayRestaurant.name}...`}
               placeholderTextColor="#94A3B8"
             />
           </View>
@@ -225,7 +187,7 @@ export default function MenuScreen({ navigation }) {
         ) : (
           <View style={styles.dishesList}>
             {filteredDishes.map((dish) => {
-              const qty = menuQuantities[dish.id] || 0;
+              const qty = getQty(dish.id);
               return (
                 <View key={dish.id} style={styles.dishCard}>
                   
@@ -267,7 +229,7 @@ export default function MenuScreen({ navigation }) {
                           <TouchableOpacity 
                             style={styles.addButtonRaw}
                             activeOpacity={0.8}
-                            onPress={() => handleAdd(dish.id)}
+                            onPress={() => addItem(dish, restaurantId)}
                           >
                             <Text style={styles.addButtonRawText}>ADD</Text>
                             <Ionicons name="add" size={12} color="#DC2626" style={styles.addPlus} />
@@ -276,7 +238,7 @@ export default function MenuScreen({ navigation }) {
                           <View style={styles.addQtySelector}>
                             <TouchableOpacity 
                               style={styles.addQtyBtn} 
-                              onPress={() => handleSubtract(dish.id)}
+                              onPress={() => removeItem(dish.id)}
                             >
                               <Ionicons name="remove" size={16} color="#DC2626" />
                             </TouchableOpacity>
@@ -285,7 +247,7 @@ export default function MenuScreen({ navigation }) {
                             
                             <TouchableOpacity 
                               style={styles.addQtyBtn} 
-                              onPress={() => handleAdd(dish.id)}
+                              onPress={() => addItem(dish, restaurantId)}
                             >
                               <Ionicons name="add" size={16} color="#DC2626" />
                             </TouchableOpacity>
@@ -311,7 +273,7 @@ export default function MenuScreen({ navigation }) {
       </ScrollView>
 
       {/* Floating Bottom Bar matching Swiggy/Zomato exactly */}
-      {totalItems > 0 && (
+      {cartCount > 0 && (
         <View style={styles.floatingCartBar}>
           <TouchableOpacity 
             style={styles.cartBarBtn}
@@ -319,8 +281,8 @@ export default function MenuScreen({ navigation }) {
             onPress={() => navigation.navigate('FoodCart')}
           >
             <View style={styles.cartBarLeft}>
-              <Text style={styles.cartBarCount}>{totalItems} ITEM{totalItems > 1 ? 'S' : ''}</Text>
-              <Text style={styles.cartBarPrice}>₹{totalPrice} plus taxes</Text>
+              <Text style={styles.cartBarCount}>{cartCount} ITEM{cartCount > 1 ? 'S' : ''}</Text>
+              <Text style={styles.cartBarPrice}>₹{cartTotal} plus taxes</Text>
             </View>
             <View style={styles.cartBarRight}>
               <Text style={styles.viewCartText}>View Cart</Text>

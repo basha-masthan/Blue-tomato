@@ -1,15 +1,35 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SignupScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
 
-  const handleSignup = () => {
-    // Navigate to Login or MainApp after signup
-    navigation.navigate('Login');
+  const handleSignup = async () => {
+    if (!name || !email || !password || !phone) {
+      Alert.alert('Error', 'Please fill all required fields');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await register({ name, email, phone, password });
+      // App.js handles navigation once authenticated
+    } catch (error) {
+      Alert.alert('Signup Failed', error.response?.data?.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,6 +58,13 @@ export default function SignupScreen({ navigation }) {
             />
             <TextInput
               style={styles.input}
+              placeholder="Phone Number"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+            <TextInput
+              style={styles.input}
               placeholder="Password"
               value={password}
               onChangeText={setPassword}
@@ -52,8 +79,8 @@ export default function SignupScreen({ navigation }) {
             />
           </View>
 
-          <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-            <Text style={styles.signupButtonText}>Sign up</Text>
+          <TouchableOpacity style={styles.signupButton} onPress={handleSignup} disabled={loading}>
+            <Text style={styles.signupButtonText}>{loading ? 'Creating Account...' : 'Sign up'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.signIn}>

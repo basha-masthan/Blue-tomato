@@ -1,51 +1,71 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 require('dotenv').config();
-
-// Simple User schema inline for seeding
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  phone: String,
-  password: String,
-  loginMethod: String,
-  profilePic: String,
-  addresses: Array,
-}, { timestamps: true });
-
-const User = mongoose.model('User', userSchema);
+const mongoose = require('mongoose');
+const User = require('./models/User');
 
 const dummyUsers = [
   {
     name: 'Azad Khan',
     email: 'azad@demo.com',
-    phone: '+91 9876543210',
+    phone: '+919876543210',
     password: 'demo123',
     loginMethod: 'email',
-    profilePic: '',
+    role: 'customer',
+    isVerified: true,
+    isActive: true,
     addresses: [
-      { label: 'Home', addressText: '123 Main Street, Srinagar, J&K, India', lat: 34.0836, lng: 74.7973 },
-      { label: 'Work', addressText: 'Tech Park, Sector 5, Jammu, J&K, India', lat: 32.7266, lng: 74.857 },
+      {
+        label: 'Home',
+        addressLine1: '123 Main Street',
+        city: 'Srinagar',
+        state: 'Jammu & Kashmir',
+        pincode: '190001',
+        lat: 34.0836,
+        lng: 74.7973,
+        isDefault: true,
+      },
+      {
+        label: 'Work',
+        addressLine1: 'Tech Park, Sector 5',
+        city: 'Jammu',
+        state: 'Jammu & Kashmir',
+        pincode: '180001',
+        lat: 32.7266,
+        lng: 74.857,
+        isDefault: false,
+      },
     ],
   },
   {
     name: 'Sara Ahmed',
     email: 'sara@demo.com',
-    phone: '+91 8765432109',
+    phone: '+918765432109',
     password: 'demo123',
     loginMethod: 'email',
-    profilePic: '',
+    role: 'customer',
+    isVerified: true,
+    isActive: true,
     addresses: [
-      { label: 'Home', addressText: '456 Garden Colony, Sopore, J&K, India', lat: 34.2947, lng: 74.4611 },
+      {
+        label: 'Home',
+        addressLine1: '456 Garden Colony',
+        city: 'Sopore',
+        state: 'Jammu & Kashmir',
+        pincode: '193201',
+        lat: 34.2947,
+        lng: 74.4611,
+        isDefault: true,
+      },
     ],
   },
   {
     name: 'Raju Bhai',
     email: 'raju@demo.com',
-    phone: '+91 7654321098',
+    phone: '+917654321098',
     password: 'demo123',
     loginMethod: 'email',
-    profilePic: '',
+    role: 'customer',
+    isVerified: true,
+    isActive: true,
     addresses: [],
   },
 ];
@@ -53,33 +73,29 @@ const dummyUsers = [
 async function seed() {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/blue-tomato');
-    console.log('✅ Connected to MongoDB');
+    console.log('Connected to MongoDB');
 
-    // Clear existing users
-    await User.deleteMany({});
-    console.log('🗑️  Cleared existing users');
+    // Only clear non-admin users
+    await User.deleteMany({ role: { $ne: 'admin' } });
+    console.log('Cleared existing non-admin users');
 
-    // Hash passwords and insert
     for (const userData of dummyUsers) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(userData.password, salt);
-      const user = new User({ ...userData, password: hashedPassword });
-      await user.save();
-      console.log(`✅ Created user: ${userData.name} (${userData.email})`);
+      const user = await User.create(userData);
+      console.log(`Created user: ${user.name} (${user.email})`);
     }
 
-    console.log('\n🎉 Seed complete! Dummy credentials:');
-    console.log('─────────────────────────────────────');
-    dummyUsers.forEach(u => {
-      console.log(`  📧 Email    : ${u.email}`);
-      console.log(`  🔑 Password : ${u.password}`);
-      console.log(`  📞 Phone    : ${u.phone}`);
-      console.log('  ─────────────────────────────────────');
+    console.log('\nSeed complete!');
+    console.log('Dummy credentials:');
+    dummyUsers.forEach((u) => {
+      console.log(`  Email: ${u.email}`);
+      console.log(`  Password: ${u.password}`);
+      console.log(`  Phone: ${u.phone}`);
+      console.log('  ──────────────────');
     });
 
     process.exit(0);
   } catch (err) {
-    console.error('❌ Seed failed:', err.message);
+    console.error('Seed failed:', err.message);
     process.exit(1);
   }
 }

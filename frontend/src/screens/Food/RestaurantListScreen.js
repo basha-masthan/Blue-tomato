@@ -1,48 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { vendorAPI } from '../../api/client';
 
 export default function RestaurantListScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
-  const [featuredDishes, setFeaturedDishes] = useState([]);
-  const [selectedCat, setSelectedCat] = useState('Chicken');
-  const [loadingCats, setLoadingCats] = useState(true);
-  const [loadingDishes, setLoadingDishes] = useState(true);
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedCat, setSelectedCat] = useState('All');
+  const [loading, setLoading] = useState(true);
+  const [loadingCats, setLoadingCats] = useState(false);
+  const [loadingDishes, setLoadingDishes] = useState(false);
+  const [featuredDishes, setFeaturedDishes] = useState([
+    { idMeal: '1', strMeal: 'Margherita Pizza', strMealThumb: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&auto=format&fit=crop&q=80' },
+    { idMeal: '2', strMeal: 'Chicken Burger', strMealThumb: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80' }
+  ]);
 
-  // Fetch categories on mount
   useEffect(() => {
-    fetch('https://www.themealdb.com/api/json/v1/1/categories.php')
-      .then(res => res.json())
-      .then(data => {
-        if (data.categories) {
-          // Take first 6 categories for neat UI
-          setCategories(data.categories.slice(0, 6));
-        }
-        setLoadingCats(false);
-      })
-      .catch(err => {
-        console.error('Error fetching categories:', err);
-        setLoadingCats(false);
-      });
+    fetchRestaurants();
   }, []);
 
-  // Fetch dishes whenever selected category changes
-  useEffect(() => {
-    setLoadingDishes(true);
-    fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?c=${selectedCat}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.meals) {
-          // Take first 5 meals for beautiful display
-          setFeaturedDishes(data.meals.slice(0, 5));
-        }
-        setLoadingDishes(false);
-      })
-      .catch(err => {
-        console.error('Error fetching dishes:', err);
-        setLoadingDishes(false);
-      });
-  }, [selectedCat]);
+  const fetchRestaurants = async () => {
+    try {
+      setLoading(true);
+      const res = await vendorAPI.getRestaurants();
+      setRestaurants(res.data.vendors || []);
+      
+      // Temporary hardcoded categories since DB doesn't have categories table yet
+      setCategories([
+        { idCategory: '1', strCategory: 'All', strCategoryThumb: '' },
+        { idCategory: '2', strCategory: 'Biryani', strCategoryThumb: '' },
+        { idCategory: '3', strCategory: 'Fast Food', strCategoryThumb: '' },
+      ]);
+    } catch (err) {
+      console.error('Error fetching restaurants:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = () => {
     navigation.navigate('FoodSearch');
@@ -174,70 +168,48 @@ export default function RestaurantListScreen({ navigation }) {
         <View style={[styles.section, { marginTop: 28 }]}>
           <Text style={styles.sectionTitle}>Popular Restaurants</Text>
 
-          {[
-            {
-              name: 'Hotel Paradise',
-              cuisines: 'Biryani · Seafood · Indian',
-              rating: '4.7',
-              time: '20-25 min',
-              priceTag: '₹300 for two',
-              offer: '20% OFF',
-              img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80',
-            },
-            {
-              name: 'Wazwan House',
-              cuisines: 'Kashmiri · Mughlai',
-              rating: '4.8',
-              time: '30-35 min',
-              priceTag: '₹400 for two',
-              offer: 'FREE DELIVERY',
-              img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&auto=format&fit=crop&q=80',
-            },
-            {
-              name: 'Burger Street',
-              cuisines: 'Burgers · Wraps · Fries',
-              rating: '4.4',
-              time: '18-22 min',
-              priceTag: '₹200 for two',
-              offer: 'BUY 1 GET 1',
-              img: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&auto=format&fit=crop&q=80',
-            },
-          ].map((r, i) => (
-            <TouchableOpacity
-              key={i}
-              style={styles.restaurantCard}
-              activeOpacity={0.9}
-              onPress={() => navigation.navigate('FoodMenu')}
-            >
-              {/* Real photo */}
-              <View style={styles.restaurantImageBg}>
-                <Image source={{ uri: r.img }} style={styles.restaurantPhoto} resizeMode="cover" />
-                <View style={styles.buildingOverlay}>
-                  <View style={styles.offerBadge}>
-                    <Text style={styles.offerBadgeText}>{r.offer}</Text>
+          {loading ? (
+            <ActivityIndicator size="medium" color="#1E3A8A" style={{ marginVertical: 30 }} />
+          ) : restaurants.length === 0 ? (
+            <Text style={{ textAlign: 'center', marginTop: 20, color: '#666' }}>No restaurants found.</Text>
+          ) : (
+            restaurants.map((r, i) => (
+              <TouchableOpacity
+                key={r._id || i}
+                style={styles.restaurantCard}
+                activeOpacity={0.9}
+                onPress={() => navigation.navigate('FoodMenu', { restaurantId: r._id, restaurantName: r.name })}
+              >
+                {/* Real photo */}
+                <View style={styles.restaurantImageBg}>
+                  <Image source={{ uri: r.profilePic || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80' }} style={styles.restaurantPhoto} resizeMode="cover" />
+                  <View style={styles.buildingOverlay}>
+                    <View style={styles.offerBadge}>
+                      <Text style={styles.offerBadgeText}>10% OFF</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              <View style={styles.restaurantInfo}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.restaurantName}>{r.name}</Text>
-                  <Text style={styles.restaurantCuisines}>{r.cuisines}</Text>
-                  <Text style={styles.restaurantPrice}>{r.priceTag}</Text>
-                </View>
-                <View style={styles.restaurantMeta}>
-                  <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={12} color="#F59E0B" />
-                    <Text style={styles.ratingText}>{r.rating}</Text>
+                <View style={styles.restaurantInfo}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.restaurantName}>{r.name}</Text>
+                    <Text style={styles.restaurantCuisines}>{r.registrationType}</Text>
+                    <Text style={styles.restaurantPrice}>{r.currentAddress?.city || 'Local'}</Text>
                   </View>
-                  <View style={styles.timeBadge}>
-                    <Ionicons name="time-outline" size={12} color="#64748B" />
-                    <Text style={styles.timeText}>{r.time}</Text>
+                  <View style={styles.restaurantMeta}>
+                    <View style={styles.ratingBadge}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={styles.ratingText}>{r.rating || '4.5'}</Text>
+                    </View>
+                    <View style={styles.timeBadge}>
+                      <Ionicons name="time-outline" size={12} color="#64748B" />
+                      <Text style={styles.timeText}>30-40 min</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
       </ScrollView>

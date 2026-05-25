@@ -1,55 +1,88 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, TextInput, Alert, Switch, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useCart } from '../../context/CartContext';
+import { orderAPI } from '../../api/client';
 
 export default function CartScreen({ navigation }) {
-  const [quantities, setQuantities] = useState({ item1: 1, item2: 1 });
+  const { cart, restaurantId, cartTotal, addItem, removeItem, clearCart } = useCart();
+  
   const [instructions, setInstructions] = useState('');
   const [noContact, setNoContact] = useState(false);
   const [noCall, setNoCall] = useState(true);
+  const [placingOrder, setPlacingOrder] = useState(false);
 
-  const cartItems = [
-    { id: 'item1', name: 'Special Chicken Biryani', price: 299, isVeg: false },
-    { id: 'item2', name: 'Paneer Makhani Butter', price: 249, isVeg: true },
-  ];
-
-  const handleIncrement = (id) => {
-    setQuantities(prev => ({ ...prev, [id]: prev[id] + 1 }));
-  };
-
-  const handleDecrement = (id) => {
-    setQuantities(prev => ({ 
-      ...prev, 
-      [id]: prev[id] > 0 ? prev[id] - 1 : 0 
-    }));
-  };
-
-  const itemTotal = cartItems.reduce((sum, item) => sum + (item.price * quantities[item.id]), 0);
   const deliveryPartnerFee = 30; // represented as crossed out / FREE
-  const taxesAndCharges = parseFloat((itemTotal * 0.05).toFixed(2)); // 5% GST
-  const platformFee = itemTotal > 0 ? 5.00 : 0.00;
-  const couponDiscount = itemTotal > 0 ? 50.00 : 0.00; // WELCOME50
-  const grandTotal = itemTotal > 0 ? parseFloat((itemTotal + taxesAndCharges + platformFee - couponDiscount).toFixed(2)) : 0.00;
+  const taxesAndCharges = parseFloat((cartTotal * 0.05).toFixed(2)); // 5% GST
+  const platformFee = cartTotal > 0 ? 5.00 : 0.00;
+  const couponDiscount = cartTotal > 0 ? 50.00 : 0.00; // WELCOME50
+  
+  const grandTotal = cartTotal > 0 ? parseFloat((cartTotal + taxesAndCharges + platformFee - couponDiscount).toFixed(2)) : 0.00;
 
-  const handlePlaceOrder = () => {
-    if (grandTotal === 0) {
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) {
       Alert.alert('Empty Cart', 'Please add some items to your cart first.');
       return;
     }
+    
+    try {
+      setPlacingOrder(true);
+      // Construct backend payload format based on Order model
+      const items = cart.map(i => ({
+        menuItemId: i.menuItemId,
+        name: i.name,
+        price: i.price,
+        image: i.thumb || '',
+        isVeg: i.isVeg || false,
+        quantity: i.quantity,
+        subtotal: i.subtotal,
+      }));
 
-    Alert.alert(
-      'Order Placed Successfully!',
-      'Your delicious food from Hotel Paradise is being prepared and will arrive in 25 mins.',
-      [
-        { 
-          text: 'TRACK ORDER', 
-          onPress: () => {
-            // Pop back to top Dashboard
-            navigation.popToTop();
-          } 
+      const payload = {
+        restaurantId,
+        items,
+        pricing: {
+          itemTotal: cartTotal,
+          deliveryFee: 0,
+          taxAmount: taxesAndCharges,
+          platformFee,
+          discountAmount: couponDiscount,
+          grandTotal
+        },
+        deliveryAddress: {
+          addressLine1: 'Halal Lab Office, Srinagar', // Hardcoded mock location for now
+          city: 'Srinagar',
+          state: 'J&K',
+          pincode: '190001'
+        },
+        paymentMethod: 'cod', // Hardcoded for simplicity
+        deliveryPreferences: {
+          noContactDelivery: noContact,
+          avoidCalling: noCall,
+          cookingInstructions: instructions
         }
-      ]
-    );
+      };
+
+      await orderAPI.createOrder(payload);
+      await clearCart();
+      
+      Alert.alert(
+        'Order Placed Successfully!',
+        'Your delicious food is being prepared.',
+        [
+          { 
+            text: 'TRACK ORDER', 
+            onPress: () => {
+              navigation.popToTop();
+            } 
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Checkout Failed', error.response?.data?.message || 'Failed to place order');
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   return (
@@ -80,12 +113,12 @@ export default function CartScreen({ navigation }) {
       >
         {/* Swiggy-style Cart items list */}
         <View style={styles.cartItemsContainer}>
-          {cartItems.map((item) => {
-            const qty = quantities[item.id];
+          {cart.map((item) => {
+            const qty = item.quantity;
             if (qty === 0) return null;
 
             return (
-              <View key={item.id} style={styles.itemRow}>
+              <View key={item.menuItemId} style={styles.itemRow}>
                 {/* Veg/Non-veg box badge */}
                 <View style={[styles.vegBadge, item.isVeg ? styles.vegBorder : styles.nonVegBorder]}>
                   <View style={[styles.vegDotSmall, item.isVeg ? styles.vegBg : styles.nonVegBg]} />
@@ -101,14 +134,14 @@ export default function CartScreen({ navigation }) {
                 <View style={styles.qtySelector}>
                   <TouchableOpacity 
                     style={styles.qtySelectorBtn} 
-                    onPress={() => handleDecrement(item.id)}
+                    onPress={() => removeItem(item.menuItemId)}
                   >
                     <Ionicons name="remove" size={14} color="#DC2626" />
                   </TouchableOpacity>
                   <Text style={styles.qtyValue}>{qty}</Text>
                   <TouchableOpacity 
                     style={styles.qtySelectorBtn} 
-                    onPress={() => handleIncrement(item.id)}
+                    onPress={() => addItem(item, restaurantId)}
                   >
                     <Ionicons name="add" size={14} color="#DC2626" />
                   </TouchableOpacity>
@@ -117,7 +150,7 @@ export default function CartScreen({ navigation }) {
             );
           })}
 
-          {itemTotal === 0 && (
+          {cartTotal === 0 && (
             <View style={styles.emptyCartView}>
               <Ionicons name="basket-outline" size={54} color="#CBD5E1" />
               <Text style={styles.emptyCartText}>Your cart is empty.</Text>
@@ -125,7 +158,7 @@ export default function CartScreen({ navigation }) {
           )}
 
           {/* Cooking Instructions input */}
-          {itemTotal > 0 && (
+          {cartTotal > 0 && (
             <View style={styles.instructionsContainer}>
               <Ionicons name="restaurant-outline" size={16} color="#64748B" />
               <TextInput
@@ -140,7 +173,7 @@ export default function CartScreen({ navigation }) {
         </View>
 
         {/* Coupons Banner */}
-        {itemTotal > 0 && (
+        {cartTotal > 0 && (
           <TouchableOpacity style={styles.couponCard} activeOpacity={0.85}>
             <Ionicons name="ticket-outline" size={22} color="#DC2626" />
             <View style={styles.couponDetails}>
@@ -152,7 +185,7 @@ export default function CartScreen({ navigation }) {
         )}
 
         {/* Zomato Safety / No-Contact Delivery Cards */}
-        {itemTotal > 0 && (
+        {cartTotal > 0 && (
           <View style={styles.safetyContainer}>
             <Text style={styles.sectionTitle}>Delivery Preferences</Text>
             <View style={styles.safetyCard}>
@@ -192,14 +225,14 @@ export default function CartScreen({ navigation }) {
         )}
 
         {/* Zomato-style Bill Detailed Invoice */}
-        {itemTotal > 0 && (
+        {cartTotal > 0 && (
           <View style={styles.billContainer}>
             <Text style={styles.sectionTitle}>Bill Detailed Invoice</Text>
             
             <View style={styles.billDetailsCard}>
               <View style={styles.billRow}>
                 <Text style={styles.billLabel}>Item Total</Text>
-                <Text style={styles.billVal}>₹{itemTotal}</Text>
+                <Text style={styles.billVal}>₹{cartTotal}</Text>
               </View>
 
               <View style={styles.billRow}>
@@ -237,7 +270,7 @@ export default function CartScreen({ navigation }) {
       </ScrollView>
 
       {/* Place Order Panel matching Swiggy/Zomato exactly */}
-      {itemTotal > 0 && (
+      {cartTotal > 0 && (
         <View style={styles.checkoutPanel}>
           <View style={styles.checkoutLeft}>
             <Text style={styles.checkoutTotalLabel}>Grand Total</Text>
@@ -248,9 +281,16 @@ export default function CartScreen({ navigation }) {
             style={styles.placeOrderBtn}
             activeOpacity={0.85}
             onPress={handlePlaceOrder}
+            disabled={placingOrder}
           >
-            <Text style={styles.placeOrderBtnText}>Place Order</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFF" />
+            {placingOrder ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Text style={styles.placeOrderBtnText}>Place Order</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFF" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       )}

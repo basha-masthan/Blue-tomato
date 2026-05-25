@@ -4,6 +4,8 @@ import {
   SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, Alert
 } from 'react-native';
 
+import { useAuth } from '../../context/AuthContext';
+
 const DUMMY_USERS = [
   { name: 'Azad Khan',  email: 'azad@demo.com', password: 'demo123' },
   { name: 'Sara Ahmed', email: 'sara@demo.com', password: 'demo123' },
@@ -14,13 +16,22 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showDummy, setShowDummy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
-  const handleLogin = () => {
-    const match = DUMMY_USERS.find(u => u.email === email && u.password === password);
-    if (match) {
-      navigation.replace('Main');
-    } else {
-      Alert.alert('Login Failed', 'Invalid email or password. Use the demo credentials below.');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+    try {
+      setLoading(true);
+      await login(email, password);
+      // Navigation is handled by App.js reacting to isAuthenticated
+    } catch (error) {
+      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -7,12 +7,12 @@ import {
   ShoppingBag,
   ClipboardList,
   CreditCard,
-  UtensilsCrossed,
   Menu,
   X,
   ChevronRight,
   LogOut,
   Shield,
+  Image,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -20,10 +20,10 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/vendors', label: 'Vendors', icon: Store },
   { path: '/users', label: 'Users', icon: Users },
-  { path: '/restaurants', label: 'Restaurants', icon: UtensilsCrossed },
   { path: '/services', label: 'Services', icon: ShoppingBag },
   { path: '/orders', label: 'Orders', icon: ClipboardList },
   { path: '/transactions', label: 'Transactions', icon: CreditCard },
+  { path: '/banners', label: 'Banners', icon: Image },
 ];
 
 export default function Sidebar() {

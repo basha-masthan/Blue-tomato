@@ -25,6 +25,17 @@ router.get('/users/:id', adminController.getUserById);
 router.patch('/users/:id/toggle', adminController.toggleUserActive);
 router.delete('/users/:id', adminController.deleteUser);
 
+// ── Categories & Subcategories ────────────────────
+router.get('/categories', adminController.getCategories);
+router.post('/categories', adminController.createCategory);
+router.patch('/categories/:id', adminController.updateCategory);
+router.delete('/categories/:id', adminController.deleteCategory);
+
+router.get('/subcategories', adminController.getSubcategories);
+router.post('/subcategories', adminController.createSubcategory);
+router.patch('/subcategories/:id', adminController.updateSubcategory);
+router.delete('/subcategories/:id', adminController.deleteSubcategory);
+
 // ── Services & Menu Items ─────────────────────────
 router.get('/services', adminController.getServices);
 router.get('/menu-items', adminController.getMenuItems);

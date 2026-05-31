@@ -32,4 +32,9 @@ export const orderAPI = {
   getOrderById: (id) => client.get(`/orders/${id}`),
 };
 
+export const bookingAPI = {
+  createBooking: (data) => client.post('/bookings', data),
+  getMyBookings: () => client.get('/bookings'),
+};
+
 export default client;

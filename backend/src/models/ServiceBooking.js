@@ -34,7 +34,7 @@ const serviceBookingSchema = new mongoose.Schema(
     providerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ServiceProvider',
-      required: [true, 'Provider reference is required'],
+      required: false,
       index: true,
     },
 
@@ -54,6 +54,16 @@ const serviceBookingSchema = new mongoose.Schema(
     // ── Snapshotted Service Info ───────────────
     serviceName:     { type: String, required: true },
     serviceCategory: { type: String, required: true },
+    serviceCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      required: false,
+    },
+    serviceSubcategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subcategory',
+      required: false,
+    },
 
     // ── Scheduling ────────────────────────────
     scheduledDate: {
@@ -109,13 +119,14 @@ const serviceBookingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        'searching',   // broadcasting to nearby vendors
         'pending',     // just booked, awaiting provider confirmation
         'confirmed',   // provider confirmed the booking
         'in_progress', // provider is on-site working
         'completed',   // job done successfully
         'cancelled',   // cancelled by user or provider
       ],
-      default: 'pending',
+      default: 'searching',
     },
 
     // ── Status Timeline ───────────────────────
@@ -134,6 +145,13 @@ const serviceBookingSchema = new mongoose.Schema(
       enum: ['user', 'provider', 'system', null],
       default: null,
     },
+
+    // ── Rejected By (Lead Broadcast) ──────────
+    rejectedBy: [{
+      vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
+      reason: { type: String, default: '' },
+      timestamp: { type: Date, default: Date.now },
+    }],
 
     // ── Notes from User ───────────────────────
     userNotes: {

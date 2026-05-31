@@ -1,673 +1,779 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TextInput, TouchableOpacity, Image, Alert, Animated, Dimensions
+  TextInput, TouchableOpacity, Image, Animated, Dimensions,
+  ActivityIndicator, Platform, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import client from '../../api/client';
+import { API_CONFIG } from '../../config';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = width - 48;
 
-const BANNER_SLIDES = [
-  {
-    id: 1,
-    badge: 'JUMBO TREAT',
-    title: 'Buy 2 Get 1',
-    desc: 'Buy any 2 dishes and get 1 dish free',
-    color: '#DC2626',
-    lightColor: '#FCA5A5',
-    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&auto=format&fit=crop&q=80',
-    btnText: 'ORDER NOW',
-  },
-  {
-    id: 2,
-    badge: 'MEGA OFFER',
-    title: '50% OFF',
-    desc: 'On your first Home Services booking',
-    color: '#059669',
-    lightColor: '#6EE7B7',
-    image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=300&auto=format&fit=crop&q=80',
-    btnText: 'BOOK NOW',
-  },
+
+
+const CATEGORY_ICONS = {
+  plumbing: 'water-outline',
+  electrical: 'flash-outline',
+  cleaning: 'sparkles-outline',
+  painting: 'color-palette-outline',
+  carpentry: 'hammer-outline',
+  appliance: 'settings-outline',
+  pest: 'bug-outline',
+  default: 'construct-outline',
+};
+
+const CATEGORY_GRADIENTS = [
+  ['#3B82F6', '#1D4ED8'],
+  ['#10B981', '#059669'],
+  ['#F59E0B', '#D97706'],
+  ['#8B5CF6', '#7C3AED'],
+  ['#EF4444', '#DC2626'],
+  ['#EC4899', '#DB2777'],
+  ['#14B8A6', '#0D9488'],
+  ['#F97316', '#EA580C'],
 ];
 
 export default function DashboardScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const headerScale = useRef(new Animated.Value(0.95)).current;
   const currentSlide = useRef(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [banners, setBanners] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [selectedServiceType, setSelectedServiceType] = useState('home');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(headerScale, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }),
+    ]).start();
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const baseURL = API_CONFIG.BASE_URL.replace('/api/user', '/api');
+      const [catRes, banRes, subRes] = await Promise.all([
+        client.get(`${baseURL}/public/categories`),
+        client.get(`${baseURL}/public/banners?app=user`),
+        client.get(`${baseURL}/public/subcategories`),
+      ]);
+      const fetchedCats = catRes.data?.categories || catRes.data || [];
+      const fetchedBans = banRes.data?.banners || banRes.data || [];
+      const fetchedSubs = subRes.data?.subcategories || subRes.data || [];
+      setCategories(fetchedCats);
+      setBanners(fetchedBans);
+      setSubcategories(fetchedSubs);
+    } catch (error) {
+      console.log('Error fetching dashboard data:', error.message);
+      setBanners([]);
+      setSubcategories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Auto slide banners
   useEffect(() => {
+    if (banners.length === 0) return;
     const interval = setInterval(() => {
-      currentSlide.current = (currentSlide.current + 1) % BANNER_SLIDES.length;
-      Animated.timing(slideAnim, {
-        toValue: -currentSlide.current * (width - 40),
-        duration: 500,
-        useNativeDriver: false,
-      }).start();
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
+      const next = (currentSlide.current + 1) % banners.length;
+      currentSlide.current = next;
+      setActiveIndex(next);
 
-  const services = [
-    {
-      id: 'food',
-      title: 'Food Delivery',
-      subtitle: 'Order from restaurants near you',
-      color: '#FEF2F2',
-      ribbonColor: '#DC2626',
-      icon: 'fast-food',
-      action: () => navigation.navigate('FoodHome'),
-      image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'services',
-      title: 'Home Services',
-      subtitle: 'Plumbing, Electrician, Painting & more',
-      color: '#ECFDF5',
-      ribbonColor: '#059669',
-      icon: 'construct',
-      action: () => navigation.navigate('HomeServicesHome'),
-      image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=300&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'ride',
-      title: 'Ride-Sharing',
-      subtitle: 'Book a safe ride in minutes',
-      color: '#FFFBEB',
-      ribbonColor: '#D97706',
-      icon: 'car',
-      action: () => Alert.alert('Ride-Sharing', 'Ride-sharing module is coming soon!'),
-      image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=300&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'it',
-      title: 'IT Services',
-      subtitle: 'Computer repair and setup support',
-      color: '#F0F9FF',
-      ribbonColor: '#0369A1',
-      icon: 'laptop',
-      action: () => Alert.alert('IT Services', 'IT Services module is coming soon!'),
-      image: 'https://images.unsplash.com/photo-1588702547919-26089e690ecc?w=300&auto=format&fit=crop&q=80',
-    },
-  ];
+      // 3D slide with scale pulse
+      Animated.sequence([
+        Animated.parallel([
+          Animated.spring(scaleAnim, {
+            toValue: 0.97, tension: 200, friction: 10, useNativeDriver: false,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: -next * (CARD_WIDTH + 16),
+            duration: 450,
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.spring(scaleAnim, {
+          toValue: 1, tension: 100, friction: 8, useNativeDriver: false,
+        }),
+      ]).start();
+    }, 3800);
+    return () => clearInterval(interval);
+  }, [banners.length]);
+
+  const goToSlide = (index) => {
+    currentSlide.current = index;
+    setActiveIndex(index);
+    Animated.timing(slideAnim, {
+      toValue: -index * (CARD_WIDTH + 16),
+      duration: 400,
+      useNativeDriver: false,
+    }).start();
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.locationContainer}>
-          <View style={styles.locationIconCircle}>
-            <Ionicons name="location" size={16} color="#DC2626" />
-          </View>
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.locationLabel}>DELIVER TO</Text>
-            <View style={styles.locationRow}>
-              <Text style={styles.locationValue} numberOfLines={1}>Halal Lab office, Srinagar</Text>
-              <Ionicons name="chevron-down" size={14} color="#64748B" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F0F4FF" />
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {/* ── Header ─────────────────────────────────────── */}
+        <Animated.View style={[styles.header, { transform: [{ scale: headerScale }] }]}>
+          <View style={styles.locationRow}>
+            <View style={styles.locIcon}>
+              <Ionicons name="location" size={16} color="#4F46E5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locLabel}>DELIVER TO</Text>
+              <TouchableOpacity style={styles.locValue} activeOpacity={0.7}>
+                <Text style={styles.locText} numberOfLines={1}>Your Location</Text>
+                <Ionicons name="chevron-down" size={14} color="#4F46E5" />
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.headerIconCircle} activeOpacity={0.7}>
-            <Ionicons name="notifications-outline" size={20} color="#1E293B" />
-            <View style={styles.notifDot} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconCircle} activeOpacity={0.7}>
-            <Ionicons name="cart-outline" size={20} color="#1E293B" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Search Bar */}
-        <View style={styles.searchSection}>
-          <TouchableOpacity
-            style={styles.searchContainer}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('FoodHome')}
-          >
-            <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
-            <Text style={styles.searchPlaceholder}>Food, Plumbing, Electrician...</Text>
-            <View style={styles.searchFilterBtn}>
-              <Ionicons name="options-outline" size={16} color="#DC2626" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Category Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pillsRow}
-          style={styles.pillsScroll}
-        >
-          {[
-            { label: 'Biryani', icon: 'restaurant', color: '#DC2626' },
-            { label: 'Pizza', icon: 'pizza', color: '#D97706' },
-            { label: 'Burger', icon: 'fast-food', color: '#7C3AED' },
-            { label: 'Plumbing', icon: 'water', color: '#0369A1' },
-            { label: 'Cleaning', icon: 'sparkles', color: '#059669' },
-          ].map((pill) => (
-            <TouchableOpacity
-              key={pill.label}
-              style={styles.pill}
-              onPress={() => navigation.navigate(pill.label === 'Plumbing' ? 'HomeServicesHome' : 'FoodHome')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={pill.icon} size={14} color={pill.color} />
-              <Text style={[styles.pillText, { color: pill.color }]}>{pill.label}</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
+              <Ionicons name="notifications-outline" size={20} color="#1E293B" />
+              <View style={styles.badge} />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
+              <Ionicons name="cart-outline" size={20} color="#1E293B" />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
 
-        {/* Banner Carousel */}
-        <View style={styles.bannerSection}>
-          <View style={styles.bannerTrackWrapper}>
-            <Animated.View style={[styles.bannerTrack, { transform: [{ translateX: slideAnim }] }]}>
-              {BANNER_SLIDES.map((slide) => (
-                <TouchableOpacity
-                  key={slide.id}
-                  style={[styles.bannerCard, { backgroundColor: slide.color }]}
-                  activeOpacity={0.92}
-                  onPress={() => navigation.navigate('FoodHome')}
-                >
-                  {/* Left text */}
-                  <View style={styles.bannerLeft}>
-                    <View style={styles.bannerBadge}>
-                      <Text style={[styles.bannerBadgeText, { color: slide.color }]}>{slide.badge}</Text>
-                    </View>
-                    <Text style={styles.bannerOfferTitle}>{slide.title}</Text>
-                    <Text style={[styles.bannerOfferDesc, { color: slide.lightColor }]}>{slide.desc}</Text>
-                    <View style={styles.bannerButton}>
-                      <Text style={[styles.bannerButtonText, { color: slide.color }]}>{slide.btnText}</Text>
-                      <Ionicons name="arrow-forward" size={11} color={slide.color} />
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Search Bar ─────────────────────────────────── */}
+          <TouchableOpacity
+            style={styles.searchBar}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('HomeServicesSearch')}
+          >
+            <Ionicons name="search-outline" size={18} color="#94A3B8" />
+            <Text style={styles.searchText}>Search plumbing, electrical…</Text>
+            <View style={styles.searchFilter}>
+              <Ionicons name="options-outline" size={15} color="#4F46E5" />
+            </View>
+          </TouchableOpacity>
+
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+              <Text style={styles.loadingText}>Loading…</Text>
+            </View>
+          ) : (
+            <>
+              {/* ── Service Types Tab Selector ─────────────────── */}
+              <View style={styles.serviceTypeRow}>
+                {[
+                  { id: 'home', label: 'Home Services', icon: 'construct-outline', color: '#4F46E5' },
+                  { id: 'food', label: 'Food Delivery', icon: 'pizza-outline', color: '#F97316' },
+                  { id: 'rides', label: 'Ride Services', icon: 'car-outline', color: '#0EA5E9' },
+                ].map(type => {
+                  const isActive = selectedServiceType === type.id;
+                  return (
+                    <TouchableOpacity
+                      key={type.id}
+                      style={[
+                        styles.serviceTypeTab,
+                        isActive && { borderColor: type.color, backgroundColor: type.color + '0E' },
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => setSelectedServiceType(type.id)}
+                    >
+                      <View style={[styles.serviceTypeIconBg, { backgroundColor: isActive ? type.color : '#F1F5F9' }]}>
+                        <Ionicons name={type.icon} size={18} color={isActive ? '#FFFFFF' : '#64748B'} />
+                      </View>
+                      <Text style={[styles.serviceTypeLabel, isActive && { color: type.color, fontWeight: '800' }]}>
+                        {type.label}
+                      </Text>
+                      {(type.id === 'food' || type.id === 'rides') && (
+                        <View style={styles.soonBadge}>
+                          <Text style={styles.soonText}>Soon</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* ── Offer Banners ──────────────────────────────── */}
+              {banners && banners.length > 0 && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>✨ Special Offers</Text>
+                  </View>
+
+                  <View style={styles.carouselWrap}>
+                    <Animated.View style={[styles.carouselTrack, { transform: [{ translateX: slideAnim }] }]}>
+                      {banners.map((banner, index) => {
+                        const bg = banner.backgroundColor || '#4F46E5';
+                        const lightC = banner.lightColor || '#A5B4FC';
+                        const imgUri = banner.image || banner.imageUrl || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop';
+
+                        return (
+                          <TouchableOpacity
+                            key={banner._id || index}
+                            activeOpacity={0.92}
+                            style={styles.bannerCard}
+                          >
+                            {/* Background gradient */}
+                            <View style={[styles.bannerBg, { backgroundColor: bg }]}>
+                              {/* Decorative circles */}
+                              <View style={[styles.decCircle1, { backgroundColor: lightC + '33' }]} />
+                              <View style={[styles.decCircle2, { backgroundColor: lightC + '22' }]} />
+
+                              <View style={styles.bannerContent}>
+                                {/* Tag pill */}
+                                {banner.tag && (
+                                  <View style={styles.tagPill}>
+                                    <Text style={[styles.tagText, { color: bg }]}>{banner.tag}</Text>
+                                  </View>
+                                )}
+
+                                {/* Title */}
+                                <Text style={styles.bannerTitle}>{banner.title}</Text>
+                                {banner.description && (
+                                  <Text style={[styles.bannerDesc, { color: lightC }]}>
+                                    {banner.description}
+                                  </Text>
+                                )}
+
+                                {/* CTA */}
+                                <View style={styles.ctaRow}>
+                                  <View style={styles.ctaBtn}>
+                                    <Text style={[styles.ctaText, { color: bg }]}>
+                                      {banner.btnText || 'BOOK NOW'}
+                                    </Text>
+                                    <Ionicons name="arrow-forward" size={11} color={bg} />
+                                  </View>
+                                </View>
+                              </View>
+
+                              {/* Right Image */}
+                              <View style={styles.bannerImgWrap}>
+                                <Image
+                                  source={{ uri: imgUri }}
+                                  style={styles.bannerImg}
+                                  resizeMode="cover"
+                                />
+                                {/* 3D shine overlay */}
+                                <View style={styles.bannerShine} />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </Animated.View>
+
+                    {/* Indicator dots */}
+                    <View style={styles.dotsRow}>
+                      {banners.map((_, i) => (
+                        <TouchableOpacity key={i} onPress={() => goToSlide(i)}>
+                          <View style={[styles.dot, i === activeIndex && styles.dotActive]} />
+                        </TouchableOpacity>
+                      ))}
                     </View>
                   </View>
-                  {/* Right image */}
-                  <View style={styles.bannerImageWrapper}>
-                    <Image
-                      source={{ uri: slide.image }}
-                      style={styles.bannerImage}
-                      resizeMode="cover"
+                </>
+              )}
+
+              {selectedServiceType === 'home' ? (
+                <>
+                  {/* ── Service Categories ─────────────────────────── */}
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>🏠 Our Services</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('HomeServicesSearch')}>
+                      <Text style={styles.seeAll}>See All</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {categories.length === 0 ? (
+                    <View style={styles.emptyServices}>
+                      <Ionicons name="construct-outline" size={48} color="#CBD5E1" />
+                      <Text style={styles.emptyText}>No services available yet</Text>
+                      <Text style={styles.emptySubText}>Check back soon!</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.categoryGrid}>
+                      {categories.map((cat, idx) => {
+                        const gradient = CATEGORY_GRADIENTS[idx % CATEGORY_GRADIENTS.length];
+                        const iconName = CATEGORY_ICONS[cat.name?.toLowerCase()] || CATEGORY_ICONS.default;
+                        return (
+                          <TouchableOpacity
+                            key={cat._id || idx}
+                            style={styles.catCard}
+                            onPress={() => navigation.navigate('HomeServicesHome', { categoryId: cat._id })}
+                            activeOpacity={0.85}
+                          >
+                            {/* 3D card face */}
+                            <View style={[styles.catFace, { backgroundColor: gradient[0] }]}>
+                              {/* Decorative blob */}
+                              <View style={[styles.catBlob, { backgroundColor: gradient[1] + '88' }]} />
+
+                              {/* Icon box */}
+                              <View style={styles.catIconBox}>
+                                <Ionicons name={iconName} size={28} color="#FFFFFF" />
+                              </View>
+
+                              {/* Name */}
+                              <Text style={styles.catName}>{cat.name}</Text>
+                              {cat.description && (
+                                <Text style={styles.catDesc} numberOfLines={2}>{cat.description}</Text>
+                              )}
+
+                              <View style={styles.catArrow}>
+                                <Text style={styles.catArrowText}>Explore</Text>
+                                <Ionicons name="chevron-forward" size={12} color="rgba(255,255,255,0.7)" />
+                              </View>
+                            </View>
+                            {/* 3D shadow layer */}
+                            <View style={[styles.catShadow, { backgroundColor: gradient[1] }]} />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* ── Top Ranked Sub-Services ────────────────────── */}
+                  {subcategories && subcategories.length > 0 && (
+                    <>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>🔥 Popular Sub-Services</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('HomeServicesSearch')}>
+                          <Text style={styles.seeAll}>See All</Text>
+                        </TouchableOpacity>
+                      </View>
+                      
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.subScroll}
+                      >
+                        {subcategories.map((sub, idx) => {
+                          const catName = categories.find(c => c._id === sub.category)?.name || 'Home Service';
+                          return (
+                            <TouchableOpacity
+                              key={sub._id || idx}
+                              style={styles.subCardWide}
+                              activeOpacity={0.9}
+                              onPress={() => navigation.navigate('HomeServicesHome', { categoryId: sub.category })}
+                            >
+                              <View style={styles.subCardTop}>
+                                <View style={styles.subCategoryBadge}>
+                                  <Text style={styles.subCategoryBadgeText}>{catName}</Text>
+                                </View>
+                                <View style={styles.ratingBadge}>
+                                  <Ionicons name="star" size={10} color="#F59E0B" />
+                                  <Text style={styles.ratingBadgeText}>4.8</Text>
+                                </View>
+                              </View>
+                              
+                              <Text style={styles.subCardTitle} numberOfLines={1}>{sub.name}</Text>
+                              <Text style={styles.subCardDesc} numberOfLines={2}>{sub.description || 'Professional repair and installation service at your doorstep.'}</Text>
+                              
+                              <View style={styles.subCardFooter}>
+                                <Text style={styles.subCardPrice}>Starting ₹{sub.basePrice || '299'}</Text>
+                                <View style={styles.bookBtnSmall}>
+                                  <Text style={styles.bookBtnSmallText}>Book</Text>
+                                  <Ionicons name="arrow-forward-outline" size={10} color="#FFFFFF" />
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </>
+                  )}
+                </>
+              ) : (
+                /* ── Coming Soon Panel for Other Services ───────── */
+                <View style={styles.comingSoonCard}>
+                  <View style={styles.comingSoonIconBg}>
+                    <Ionicons
+                      name={selectedServiceType === 'food' ? 'pizza-outline' : 'car-outline'}
+                      size={44}
+                      color="#94A3B8"
                     />
                   </View>
-                </TouchableOpacity>
-              ))}
-            </Animated.View>
-          </View>
-
-          {/* Dots */}
-          <View style={styles.dotsRow}>
-            {BANNER_SLIDES.map((s, i) => (
-              <View key={s.id} style={[styles.dot, i === 0 && styles.dotActive]} />
-            ))}
-          </View>
-        </View>
-
-        {/* Services */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Our Services</Text>
-
-          {services.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.serviceCard, { backgroundColor: item.color }]}
-              onPress={item.action}
-              activeOpacity={0.85}
-            >
-              {/* Real Image */}
-              <View style={styles.serviceImageWrapper}>
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.serviceImage}
-                  resizeMode="cover"
-                />
-                <View style={[styles.serviceImageOverlay, { backgroundColor: item.ribbonColor + 'CC' }]}>
-                  <Ionicons name={item.icon} size={22} color="#FFF" />
+                  <Text style={styles.comingSoonTitle}>
+                    {selectedServiceType === 'food' ? 'Food Services Coming Soon!' : 'Ride Services Coming Soon!'}
+                  </Text>
+                  <Text style={styles.comingSoonDesc}>
+                    We are currently expanding our platform to bring you premium{' '}
+                    {selectedServiceType === 'food' ? 'gourmet delivery' : 'on-demand rides'}{' '}
+                    right to your screen. Stay tuned!
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.notifyBtn}
+                    activeOpacity={0.8}
+                    onPress={() => alert("We'll notify you when this service launches!")}
+                  >
+                    <Text style={styles.notifyBtnText}>Notify Me</Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
-
-              {/* Content */}
-              <View style={styles.serviceContent}>
-                <View style={[styles.serviceRibbon, { backgroundColor: item.ribbonColor }]}>
-                  <Text style={styles.serviceRibbonText}>{item.title}</Text>
-                </View>
-                <Text style={styles.serviceSubtitle}>{item.subtitle}</Text>
-                <View style={styles.serviceArrow}>
-                  <Text style={[styles.serviceArrowText, { color: item.ribbonColor }]}>Explore</Text>
-                  <Ionicons name="arrow-forward" size={13} color={item.ribbonColor} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Popular Near You */}
-        <View style={[styles.section, { marginTop: 28 }]}>
-          <Text style={styles.sectionTitle}>Popular Near You 🔥</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nearbyList}>
-            {[
-              {
-                name: 'Wazwan House',
-                tag: 'Kashmiri Cuisine',
-                rating: '4.8',
-                time: '25 min',
-                img: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=200&auto=format&fit=crop&q=80',
-              },
-              {
-                name: 'Tandoor King',
-                tag: 'Mughlai, Biryani',
-                rating: '4.6',
-                time: '30 min',
-                img: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=200&auto=format&fit=crop&q=80',
-              },
-              {
-                name: 'Burger Street',
-                tag: 'Burgers, Fast Food',
-                rating: '4.4',
-                time: '20 min',
-                img: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&auto=format&fit=crop&q=80',
-              },
-            ].map((r, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.nearbyCard}
-                onPress={() => navigation.navigate('FoodMenu')}
-                activeOpacity={0.85}
-              >
-                <Image source={{ uri: r.img }} style={styles.nearbyImage} resizeMode="cover" />
-                <View style={styles.nearbyInfo}>
-                  <Text style={styles.nearbyName} numberOfLines={1}>{r.name}</Text>
-                  <Text style={styles.nearbyTag} numberOfLines={1}>{r.tag}</Text>
-                  <View style={styles.nearbyMeta}>
-                    <Ionicons name="star" size={11} color="#F59E0B" />
-                    <Text style={styles.nearbyRating}>{r.rating}</Text>
-                    <Text style={styles.nearbyDot}>·</Text>
-                    <Text style={styles.nearbyTime}>{r.time}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </ScrollView>
+              )}
+            </>
+          )}
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+  safeArea: { flex: 1, backgroundColor: '#F0F4FF' },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 4,
   },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 16,
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  locIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center', alignItems: 'center',
   },
-  locationIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FEF2F2',
-    justifyContent: 'center',
-    alignItems: 'center',
+  locLabel: { fontSize: 9, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.2 },
+  locValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: '#E2E8F0', position: 'relative',
   },
-  locationTextContainer: {
-    gap: 1,
-    flex: 1,
+  badge: {
+    position: 'absolute', top: 8, right: 8,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFF',
   },
-  locationLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 1,
+
+  scroll: { paddingBottom: 48 },
+
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 20, marginTop: 20,
+    backgroundColor: '#FFFFFF', borderRadius: 16,
+    paddingHorizontal: 16, height: 52,
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08, shadowRadius: 12, elevation: 5,
+    borderWidth: 1.5, borderColor: '#E0E7FF',
   },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  searchText: { flex: 1, fontSize: 13, color: '#94A3B8', fontWeight: '500' },
+  searchFilter: {
+    width: 30, height: 30, borderRadius: 10,
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
   },
-  locationValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
+
+  loadingBox: { flex: 1, alignItems: 'center', paddingTop: 80, gap: 12 },
+  loadingText: { color: '#94A3B8', fontSize: 14 },
+
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, marginTop: 28, marginBottom: 14,
   },
-  headerIcons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  headerIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  seeAll: { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
+
+  // Banner carousel
+  carouselWrap: { paddingLeft: 20 },
+  carouselTrack: { flexDirection: 'row', gap: 16 },
+  bannerCard: { width: CARD_WIDTH, marginRight: 0 },
+  bannerBg: {
+    width: CARD_WIDTH, height: 170, borderRadius: 24,
+    flexDirection: 'row', overflow: 'hidden',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
     position: 'relative',
   },
-  notifDot: {
-    position: 'absolute',
-    top: 9,
-    right: 9,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#DC2626',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
+  decCircle1: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    top: -60, right: -20,
   },
-  scrollContent: {
-    paddingBottom: 40,
+  decCircle2: {
+    position: 'absolute', width: 100, height: 100, borderRadius: 50,
+    bottom: -30, left: 80,
   },
-  searchSection: {
-    paddingHorizontal: 20,
-    marginTop: 18,
+  bannerContent: {
+    flex: 1, paddingLeft: 20, paddingVertical: 18, justifyContent: 'space-between', zIndex: 2,
   },
-  searchContainer: {
+  tagPill: {
+    alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+  },
+  tagText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  bannerTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', lineHeight: 32 },
+  bannerDesc: { fontSize: 11, fontWeight: '500', lineHeight: 15, marginTop: 2 },
+  ctaRow: { flexDirection: 'row' },
+  ctaBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+  },
+  ctaText: { fontSize: 11, fontWeight: '800' },
+  bannerImgWrap: { width: 115, position: 'relative' },
+  bannerImg: { width: '100%', height: '100%' },
+  bannerShine: {
+    position: 'absolute', top: 0, left: 0, width: 40, height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    transform: [{ skewX: '-10deg' }],
+  },
+  dotsRow: {
+    flexDirection: 'row', gap: 6, justifyContent: 'center',
+    marginTop: 12, paddingRight: 20,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#CBD5E1' },
+  dotActive: { width: 22, backgroundColor: '#4F46E5', borderRadius: 3 },
+
+  // Category grid - 2 columns with 3D cards
+  categoryGrid: {
+    paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 14,
+  },
+  catCard: {
+    width: (width - 54) / 2,
+    position: 'relative', marginBottom: 4,
+  },
+  catFace: {
+    borderRadius: 20, padding: 16, minHeight: 155,
+    overflow: 'hidden', position: 'relative',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
+  },
+  catBlob: {
+    position: 'absolute', width: 90, height: 90, borderRadius: 45,
+    top: -20, right: -20,
+  },
+  catIconBox: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 10,
+  },
+  catName: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  catDesc: { fontSize: 10, color: 'rgba(255,255,255,0.75)', lineHeight: 14, marginBottom: 8 },
+  catArrow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  catArrowText: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.7)' },
+  catShadow: {
+    position: 'absolute', bottom: -5, left: 6, right: 6,
+    height: 12, borderRadius: 10, opacity: 0.35, zIndex: -1,
+  },
+
+  emptyServices: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptyText: { fontSize: 15, fontWeight: '600', color: '#94A3B8' },
+  emptySubText: { fontSize: 13, color: '#CBD5E1' },
+
+  // Why Us section
+  whyUsCard: {
+    marginHorizontal: 20, marginTop: 24,
+    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20,
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 4,
+    borderWidth: 1, borderColor: '#E0E7FF',
+  },
+  whyUsTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
+  whyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  whyIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
+  },
+  whyLabel: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  whyDesc: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+
+  // Service type row selector styles
+  serviceTypeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    height: 54,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchPlaceholder: {
-    flex: 1,
-    fontSize: 14,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  searchFilterBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#FEF2F2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pillsScroll: {
-    marginTop: 16,
-  },
-  pillsRow: {
     paddingHorizontal: 20,
+    marginTop: 20,
     gap: 10,
+    justifyContent: 'space-between',
   },
-  pill: {
+  serviceTypeTab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+    position: 'relative',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03, shadowRadius: 6, elevation: 2,
   },
-  pillText: {
-    fontSize: 13,
+  serviceTypeIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  serviceTypeLabel: {
+    fontSize: 11,
     fontWeight: '700',
+    color: '#64748B',
   },
-  bannerSection: {
-    marginTop: 22,
-    paddingHorizontal: 20,
+  soonBadge: {
+    position: 'absolute',
+    top: -6,
+    right: 4,
+    backgroundColor: '#94A3B8',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 6,
   },
-  bannerTrackWrapper: {
-    overflow: 'hidden',
-    borderRadius: 24,
+  soonText: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  bannerTrack: {
-    flexDirection: 'row',
+
+  // Scrollable featured sub-services styles
+  subScroll: {
+    paddingLeft: 20,
+    paddingRight: 20,
+    gap: 16,
+    paddingBottom: 10,
   },
-  bannerCard: {
-    width: width - 40,
-    height: 155,
-    borderRadius: 24,
-    paddingHorizontal: 22,
-    paddingVertical: 20,
+  subCardWide: {
+    width: 210,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05, shadowRadius: 10, elevation: 3,
+  },
+  subCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    overflow: 'hidden',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-    marginRight: 0,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  bannerLeft: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingRight: 10,
-  },
-  bannerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  subCategoryBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
   },
-  bannerBadgeText: {
+  subCategoryBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 0.5,
-    color: '#FFF',
+    color: '#4F46E5',
+    textTransform: 'uppercase',
   },
-  bannerOfferTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFF',
-    marginTop: 4,
-  },
-  bannerOfferDesc: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  bannerButton: {
+  ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF',
-    alignSelf: 'flex-start',
+    gap: 2,
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  ratingBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  subCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  subCardDesc: {
+    fontSize: 10,
+    color: '#64748B',
+    lineHeight: 14,
+    height: 28,
+    marginBottom: 12,
+  },
+  subCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  subCardPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bookBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#4F46E5',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    marginTop: 10,
   },
-  bannerButtonText: {
+  bookBtnSmallText: {
     fontSize: 10,
     fontWeight: '800',
+    color: '#FFFFFF',
   },
-  bannerImageWrapper: {
-    width: 110,
-    height: '100%',
-    borderRadius: 18,
-    overflow: 'hidden',
+
+  // Coming Soon Cards
+  comingSoonCard: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05, shadowRadius: 12, elevation: 4,
   },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  dotsRow: {
-    flexDirection: 'row',
+  comingSoonIconBg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#CBD5E1',
-  },
-  dotActive: {
-    width: 20,
-    backgroundColor: '#DC2626',
-  },
-  section: {
-    marginTop: 28,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    alignItems: 'center',
     marginBottom: 16,
-    letterSpacing: 0.3,
   },
-  serviceCard: {
-    flexDirection: 'row',
-    borderRadius: 22,
-    marginBottom: 14,
-    overflow: 'hidden',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    alignItems: 'center',
-    padding: 14,
-    gap: 16,
+  comingSoonTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 8,
+    textAlign: 'center',
   },
-  serviceImageWrapper: {
-    width: 82,
-    height: 82,
-    borderRadius: 18,
-    overflow: 'hidden',
-    position: 'relative',
+  comingSoonDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
   },
-  serviceImage: {
-    width: '100%',
-    height: '100%',
+  notifyBtn: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
   },
-  serviceImageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  serviceContent: {
-    flex: 1,
-    gap: 6,
-  },
-  serviceRibbon: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  serviceRibbonText: {
-    color: '#FFF',
+  notifyBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  serviceSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  serviceArrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  serviceArrowText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  nearbyList: {
-    gap: 14,
-    paddingBottom: 4,
-  },
-  nearbyCard: {
-    width: 150,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    overflow: 'hidden',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  nearbyImage: {
-    width: '100%',
-    height: 100,
-  },
-  nearbyInfo: {
-    padding: 10,
-    gap: 3,
-  },
-  nearbyName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  nearbyTag: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  nearbyMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 4,
-  },
-  nearbyRating: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  nearbyDot: {
-    fontSize: 12,
-    color: '#CBD5E1',
-    fontWeight: '700',
-  },
-  nearbyTime: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });

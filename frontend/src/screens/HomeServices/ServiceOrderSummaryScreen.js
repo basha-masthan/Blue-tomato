@@ -1,22 +1,105 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSocket } from '../../context/SocketContext';
+import { bookingAPI } from '../../api/client';
 
-export default function ServiceOrderSummaryScreen({ navigation }) {
-  const handleBook = () => {
-    Alert.alert(
-      'Booking Confirmed!',
-      'Your plumber has been scheduled successfully. You can track your booking in the Orders tab.',
-      [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            // Reset back to Dashboard
-            navigation.popToTop();
-          } 
-        }
-      ]
-    );
+export default function ServiceOrderSummaryScreen({ navigation, route }) {
+  // Assuming route.params has { categoryId, subcategoryId, serviceName, basePrice }
+  const { categoryId, subcategoryId, serviceName, basePrice = 599 } = route.params || { 
+    serviceName: 'Bathroom Repair', basePrice: 599 
+  };
+  
+  const { socket } = useSocket();
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [currentBookingId, setCurrentBookingId] = useState(null);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleLeadClaimed = (data) => {
+      if (currentBookingId === data.bookingId) {
+        setSearching(false);
+        Alert.alert(
+          'Vendor Assigned!',
+          'A vendor has accepted your request. You can view details in your Orders tab.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => navigation.popToTop() 
+            }
+          ]
+        );
+      }
+    };
+
+    const handleLeadSearching = (data) => {
+      if (currentBookingId === data.bookingId) {
+        setSearching(true);
+      }
+    };
+
+    socket.on('lead_claimed', handleLeadClaimed);
+    socket.on('lead_searching', handleLeadSearching);
+
+    return () => {
+      socket.off('lead_claimed', handleLeadClaimed);
+      socket.off('lead_searching', handleLeadSearching);
+    };
+  }, [socket, currentBookingId, navigation]);
+
+  const handleBook = async () => {
+    try {
+      setLoading(true);
+      // Dummy pricing calculation
+      const pricing = {
+        serviceTotal: basePrice,
+        gstAmount: 29,
+        convenienceFee: 5,
+        visitCharges: 47,
+        discountAmount: 150,
+        grandTotal: basePrice + 29 + 5 + 47 - 150
+      };
+      
+      const serviceAddress = {
+        label: 'Home',
+        addressLine1: 'ABC Town, xyZ City',
+        city: 'City', // In reality, fetch from user profile
+        state: 'State',
+        pincode: '123456'
+      };
+
+      const res = await bookingAPI.createBooking({
+        serviceId: categoryId, // just a placeholder
+        serviceName,
+        serviceCategoryId: categoryId,
+        serviceSubcategoryId: subcategoryId,
+        scheduledDate: new Date(),
+        pricing,
+        serviceAddress
+      });
+
+      const bookingId = res.data.booking._id;
+      setCurrentBookingId(bookingId);
+
+      // Now emit to socket
+      if (socket) {
+        socket.emit('request_home_service', {
+          bookingId,
+          categoryId,
+          subcategoryId,
+          city: serviceAddress.city
+        });
+      }
+
+      setLoading(false);
+      setSearching(true); // Show searching modal
+    } catch (err) {
+      setLoading(false);
+      Alert.alert('Error', 'Failed to place booking request.');
+      console.error(err);
+    }
   };
 
   return (
@@ -55,12 +138,12 @@ export default function ServiceOrderSummaryScreen({ navigation }) {
               <Ionicons name="build" size={28} color="#2563EB" />
             </View>
             <View style={styles.serviceDetails}>
-              <Text style={styles.serviceName}>Bathroom Repair</Text>
+              <Text style={styles.serviceName}>{serviceName}</Text>
               <Text style={styles.serviceDesc} numberOfLines={1}>
-                All bathroom repair, 24/7 Available, Extra Charges.
+                Professional {serviceName} service.
               </Text>
             </View>
-            <Text style={styles.servicePrice}>₹599</Text>
+            <Text style={styles.servicePrice}>₹{basePrice}</Text>
           </View>
 
           {/* Purple Schedule Button */}
@@ -127,11 +210,37 @@ export default function ServiceOrderSummaryScreen({ navigation }) {
           style={styles.bookBtn} 
           onPress={handleBook}
           activeOpacity={0.85}
+          disabled={loading || searching}
         >
-          <Text style={styles.bookBtnText}>Book</Text>
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.bookBtnText}>Find a Vendor</Text>
+          )}
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* Searching Modal */}
+      <Modal visible={searching} transparent animationType="fade">
+        <View style={styles.searchingOverlay}>
+          <View style={styles.searchingCard}>
+            <ActivityIndicator size="large" color="#FF6B35" />
+            <Text style={styles.searchingTitle}>Searching for nearby vendors...</Text>
+            <Text style={styles.searchingDesc}>Please wait while we connect you to the nearest professional.</Text>
+            <TouchableOpacity 
+              style={styles.cancelSearchBtn} 
+              onPress={() => {
+                setSearching(false);
+                Alert.alert('Search Cancelled');
+                // You would ideally emit a cancel event here
+              }}
+            >
+              <Text style={styles.cancelSearchText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -382,4 +491,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  searchingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  searchingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+  },
+  searchingTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  searchingDesc: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  cancelSearchBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+  },
+  cancelSearchText: {
+    color: '#0F172A',
+    fontWeight: '700',
+  }
 });

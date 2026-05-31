@@ -1,15 +1,35 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import client from '../../api/client';
+import { API_CONFIG } from '../../config';
 
 export default function HomeServicesSearchScreen({ navigation }) {
-  const [searchValue, setSearchValue] = useState('Plumbing');
+  const [searchValue, setSearchValue] = useState('');
+  const [allServices, setAllServices] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const plumbingServices = [
-    { id: '1', name: 'Bathroom Repair', desc: 'All bathroom repair, 24/7 Available, Extra Charges.', rating: '4.7', reviews: '1234', price: '₹599' },
-    { id: '2', name: 'Kitchen Drain Clog', desc: 'Sinks, kitchen drain pipe clogs, grease cleaning.', rating: '4.8', reviews: '842', price: '₹499' },
-    { id: '3', name: 'Water Meter Install', desc: 'Fitting, pipes alignment & leakage checking.', rating: '4.6', reviews: '412', price: '₹899' },
-  ];
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true);
+      const baseURL = API_CONFIG.BASE_URL.replace('/api/user', '/api');
+      const res = await client.get(`${baseURL}/public/subcategories`);
+      setAllServices(res.data?.subcategories || res.data || []);
+    } catch (error) {
+      console.log('Error fetching search services:', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredServices = allServices.filter(s => 
+    s.name.toLowerCase().includes(searchValue.toLowerCase()) || 
+    (s.description && s.description.toLowerCase().includes(searchValue.toLowerCase()))
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -66,50 +86,52 @@ export default function HomeServicesSearchScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.resultsLabel}>Plumbing Results</Text>
+        <Text style={styles.resultsLabel}>Search Results</Text>
 
-        {/* List of Plumbing service cards */}
-        <View style={styles.servicesList}>
-          {plumbingServices.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={styles.serviceCard}
-              activeOpacity={0.9}
-              onPress={() => navigation.navigate('PlumbingDetails')}
-            >
-              {/* Left plumber cartoon/wrench badge */}
-              <View style={styles.cardLeft}>
-                <View style={styles.iconCircleBg}>
-                  <Ionicons name="build" size={32} color="#2563EB" />
-                </View>
-              </View>
-
-              {/* Center Details */}
-              <View style={styles.cardCenter}>
-                <Text style={styles.cardName}>{item.name}</Text>
-                <Text style={styles.cardDesc} numberOfLines={2}>{item.desc}</Text>
-                <View style={styles.ratingRow}>
-                  <Ionicons name="star" size={14} color="#F59E0B" />
-                  <Text style={styles.ratingText}>
-                    {item.rating} <Text style={styles.reviewsText}>({item.reviews} reviews)</Text>
-                  </Text>
-                </View>
-              </View>
-
-              {/* Right Action Price & add */}
-              <View style={styles.cardRight}>
-                <Text style={styles.cardPrice}>{item.price}</Text>
+        {loading ? (
+          <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 20 }} />
+        ) : (
+          <View style={styles.servicesList}>
+            {filteredServices.length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#64748B', marginTop: 20 }}>No services found.</Text>
+            ) : (
+              filteredServices.map((item) => (
                 <TouchableOpacity 
-                  style={styles.addBtn}
-                  activeOpacity={0.7}
+                  key={item._id} 
+                  style={styles.serviceCard}
+                  activeOpacity={0.9}
                   onPress={() => navigation.navigate('PlumbingDetails')}
                 >
-                  <Ionicons name="add" size={16} color="#FFF" />
+                  {/* Left plumber cartoon/wrench badge */}
+                  <View style={styles.cardLeft}>
+                    <View style={styles.iconCircleBg}>
+                      <Ionicons name="build" size={32} color="#2563EB" />
+                    </View>
+                  </View>
+
+                  {/* Center Details */}
+                  <View style={styles.cardCenter}>
+                    <Text style={styles.cardName}>{item.name}</Text>
+                    <Text style={styles.cardDesc} numberOfLines={2}>{item.description || 'No description available.'}</Text>
+                  </View>
+
+                  {/* Right Action Price & add */}
+                  <View style={styles.cardRight}>
+                    <Text style={styles.cardPrice}>{item.basePrice ? `₹${item.basePrice}` : 'Free'}</Text>
+                    <TouchableOpacity 
+                      style={styles.addBtn}
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('PlumbingDetails')}
+                    >
+                      <Ionicons name="add" size={16} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+              ))
+            )}
+          </View>
+        )}
+
 
       </ScrollView>
     </SafeAreaView>

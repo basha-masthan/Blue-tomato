@@ -1,16 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, RefreshControl, Alert,
+  View, Text, TouchableOpacity, StyleSheet, FlatList, RefreshControl, Alert, Modal, TextInput
 } from 'react-native';
 import { orderAPI } from '../../api/client';
+import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function ProcessingOrdersScreen() {
   const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const { socket } = useSocket();
+  const { vendor } = useAuth();
+
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const fetchOrders = useCallback(async () => {
     try {
       const res = await orderAPI.getAll('processing');
+      // For now we still use this endpoint but it should ideally return ServiceBookings too.
       setOrders(res.data.orders);
     } catch (err) { console.error(err); }
   }, []);
@@ -28,6 +37,29 @@ export default function ProcessingOrdersScreen() {
       await orderAPI.complete(id);
       fetchOrders();
     } catch { Alert.alert('Error', 'Failed to complete order'); }
+  };
+
+  const openCancelModal = (id) => {
+    setSelectedOrderId(id);
+    setCancelReason('');
+    setCancelModalVisible(true);
+  };
+
+  const handleCancelLead = () => {
+    if (!cancelReason.trim()) {
+      return Alert.alert('Error', 'Please provide a reason for cancellation.');
+    }
+    
+    if (socket && vendor) {
+      socket.emit('cancel_lead', {
+        bookingId: selectedOrderId,
+        vendorId: vendor._id,
+        reason: cancelReason,
+      });
+      Alert.alert('Success', 'Lead cancelled. It has been re-broadcasted.');
+      setCancelModalVisible(false);
+      fetchOrders(); // refresh
+    }
   };
 
   const renderOrder = ({ item }) => (
@@ -53,11 +85,16 @@ export default function ProcessingOrdersScreen() {
       ))}
       <View style={styles.totalRow}>
         <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.totalValue}>₹{item.totalAmount.toFixed(2)}</Text>
+        <Text style={styles.totalValue}>₹{item.totalAmount?.toFixed(2) || '0.00'}</Text>
       </View>
-      <TouchableOpacity style={styles.completeBtn} onPress={() => handleComplete(item._id)}>
-        <Text style={styles.completeText}>Order Completed</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => openCancelModal(item._id)}>
+          <Text style={styles.cancelText}>Cancel Lead</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.completeBtn} onPress={() => handleComplete(item._id)}>
+          <Text style={styles.completeText}>Job Done</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -72,6 +109,32 @@ export default function ProcessingOrdersScreen() {
         contentContainerStyle={orders.length === 0 ? styles.emptyContainer : { padding: 16 }}
         ListEmptyComponent={<Text style={styles.empty}>No processing orders</Text>}
       />
+
+      <Modal visible={cancelModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Cancel Lead</Text>
+            <Text style={styles.modalSubtitle}>Please provide a reason so we can inform the user and re-assign.</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="E.g. distance is too far, busy right now..."
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              multiline
+            />
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setCancelModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnConfirm} onPress={handleCancelLead}>
+                <Text style={styles.modalBtnConfirmText}>Cancel Job</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -90,8 +153,20 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#eee' },
   totalLabel: { fontSize: 15, fontWeight: '700', color: '#333' },
   totalValue: { fontSize: 15, fontWeight: '800', color: '#FF6B35' },
-  completeBtn: { backgroundColor: '#34C759', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  cancelBtn: { flex: 1, backgroundColor: '#FBE9E7', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginRight: 8 },
+  cancelText: { color: '#FF5252', fontWeight: '700', fontSize: 15 },
+  completeBtn: { flex: 1, backgroundColor: '#34C759', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginLeft: 8 },
   completeText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: { fontSize: 14, color: '#999' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#fff', padding: 20, borderRadius: 12, width: '100%' },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 8 },
+  modalSubtitle: { fontSize: 14, color: '#666', marginBottom: 16 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, height: 100, textAlignVertical: 'top', marginBottom: 16 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
+  modalBtnCancel: { paddingHorizontal: 16, paddingVertical: 10 },
+  modalBtnCancelText: { color: '#666', fontWeight: '600' },
+  modalBtnConfirm: { backgroundColor: '#FF5252', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  modalBtnConfirmText: { color: '#fff', fontWeight: '600' },
 });

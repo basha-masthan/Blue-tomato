@@ -2,6 +2,31 @@ const express = require('express');
 const router = express.Router();
 const Banner = require('../models/Banner');
 const AppConfig = require('../models/AppConfig');
+const Category = require('../models/Category');
+const Subcategory = require('../models/Subcategory');
+
+// ── Public Categories API ───────────────────────────
+
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await Category.find({ isActive: true }).sort({ createdAt: -1 });
+    res.json({ categories });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get categories', error: error.message });
+  }
+});
+
+router.get('/subcategories', async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    const query = { isActive: true };
+    if (categoryId) query.category = categoryId;
+    const subcategories = await Subcategory.find(query).sort({ createdAt: -1 });
+    res.json({ subcategories });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get subcategories', error: error.message });
+  }
+});
 
 // ── Public Banners API ──────────────────────────────
 
@@ -9,15 +34,23 @@ router.get('/banners', async (req, res) => {
   try {
     const { app } = req.query;
     const now = new Date();
-    const query = {
-      isActive: true,
-      $or: [{ targetApp: app }, { targetApp: 'both' }],
+    
+    const conditions = [];
+    if (app) {
+      conditions.push({ $or: [{ targetApp: app }, { targetApp: 'both' }] });
+    }
+    conditions.push({
       $or: [
         { startDate: null, endDate: null },
         { startDate: { $lte: now }, endDate: { $gte: now } },
         { startDate: { $lte: now }, endDate: null },
         { startDate: null, endDate: { $gte: now } },
       ],
+    });
+
+    const query = {
+      isActive: true,
+      $and: conditions,
     };
 
     const banners = await Banner.find(query)

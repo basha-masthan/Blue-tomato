@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
+import LeadPopup from '../components/LeadPopup';
+
 import LoginScreen from '../screens/Auth/LoginScreen';
 import BasicDetailsScreen from '../screens/Onboarding/BasicDetailsScreen';
 import RegistrationTypeScreen from '../screens/Onboarding/RegistrationTypeScreen';
@@ -128,5 +130,10 @@ export default function VendorNavigator() {
     );
   }
 
-  return <MainTabs />;
+  return (
+    <>
+      <MainTabs />
+      <LeadPopup />
+    </>
+  );
 }

@@ -12,6 +12,8 @@ const VendorService = require('../models/VendorService');
 const Banner = require('../models/Banner');
 const AppConfig = require('../models/AppConfig');
 const Notification = require('../models/Notification');
+const Category = require('../models/Category');
+const Subcategory = require('../models/Subcategory');
 
 // ── Admin Auth ──────────────────────────────────────
 
@@ -289,6 +291,98 @@ const toggleVendorActive = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to toggle vendor status', error: error.message });
+  }
+};
+
+// ── Category Management ───────────────────────────────
+
+const getCategories = async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ createdAt: -1 });
+    res.json({ categories });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get categories', error: error.message });
+  }
+};
+
+const createCategory = async (req, res) => {
+  try {
+    const category = await Category.create(req.body);
+    res.status(201).json({ message: 'Category created successfully', category });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create category', error: error.message });
+  }
+};
+
+const updateCategory = async (req, res) => {
+  try {
+    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+    res.json({ message: 'Category updated successfully', category });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update category', error: error.message });
+  }
+};
+
+const deleteCategory = async (req, res) => {
+  try {
+    const category = await Category.findByIdAndDelete(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+    await Subcategory.deleteMany({ category: req.params.id }); // Clean up subcategories
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete category', error: error.message });
+  }
+};
+
+// ── Subcategory Management ────────────────────────────
+
+const getSubcategories = async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    const query = categoryId ? { category: categoryId } : {};
+    const subcategories = await Subcategory.find(query).populate('category', 'name').sort({ createdAt: -1 });
+    res.json({ subcategories });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get subcategories', error: error.message });
+  }
+};
+
+const createSubcategory = async (req, res) => {
+  try {
+    const subcategory = await Subcategory.create(req.body);
+    const populated = await subcategory.populate('category', 'name');
+    res.status(201).json({ message: 'Subcategory created successfully', subcategory: populated });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create subcategory', error: error.message });
+  }
+};
+
+const updateSubcategory = async (req, res) => {
+  try {
+    const subcategory = await Subcategory.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('category', 'name');
+    if (!subcategory) {
+      return res.status(404).json({ message: 'Subcategory not found' });
+    }
+    res.json({ message: 'Subcategory updated successfully', subcategory });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update subcategory', error: error.message });
+  }
+};
+
+const deleteSubcategory = async (req, res) => {
+  try {
+    const subcategory = await Subcategory.findByIdAndDelete(req.params.id);
+    if (!subcategory) {
+      return res.status(404).json({ message: 'Subcategory not found' });
+    }
+    res.json({ message: 'Subcategory deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete subcategory', error: error.message });
   }
 };
 
@@ -1002,6 +1096,15 @@ module.exports = {
   getUserById,
   toggleUserActive,
   deleteUser,
+  // Categories & Subcategories
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getSubcategories,
+  createSubcategory,
+  updateSubcategory,
+  deleteSubcategory,
   // Services & Menu
   getServices,
   getMenuItems,

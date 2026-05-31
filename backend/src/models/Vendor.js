@@ -60,11 +60,15 @@ const vendorSchema = new mongoose.Schema({
   bloodGroup: { type: String, trim: true },
   emergencyContact: { type: String, trim: true },
 
-  registrationType: {
-    type: String,
-    enum: ['restaurant', 'it_firm', 'plumbing', 'electrical', 'cleaning', 'other'],
-    required: [true, 'Registration type is required'],
+  serviceCategory: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    required: [true, 'Service category is required'],
   },
+  serviceSubcategories: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subcategory',
+  }],
 
   profilePic: { type: String, default: '' },
 
@@ -109,7 +113,7 @@ const vendorSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-vendorSchema.index({ registrationType: 1 });
+vendorSchema.index({ serviceCategory: 1 });
 vendorSchema.index({ isOnline: 1 });
 
 vendorSchema.pre('save', async function () {

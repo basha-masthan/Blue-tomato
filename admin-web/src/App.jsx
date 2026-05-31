@@ -11,7 +11,7 @@ import Services from './pages/Services';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import Transactions from './pages/Transactions';
-import Restaurants from './pages/Restaurants';
+import Banners from './pages/Banners';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -40,7 +40,7 @@ function App() {
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/orders/:id" element={<OrderDetail />} />
                     <Route path="/transactions" element={<Transactions />} />
-                    <Route path="/restaurants" element={<Restaurants />} />
+                    <Route path="/banners" element={<Banners />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Layout>

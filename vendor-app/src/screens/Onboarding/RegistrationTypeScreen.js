@@ -1,27 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-
-const REGISTRATION_TYPES = [
-  { key: 'restaurant', label: 'Restaurant', icon: 'restaurant' },
-  { key: 'it_firm', label: 'IT Firm', icon: 'laptop' },
-  { key: 'plumbing', label: 'Plumbing', icon: 'water' },
-  { key: 'electrical', label: 'Electrical', icon: 'flash' },
-  { key: 'cleaning', label: 'Cleaning', icon: 'sparkles' },
-  { key: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
-];
+import client from '../../api/client';
 
 export default function RegistrationTypeScreen({ route }) {
   const { register } = useAuth();
-  const [selected, setSelected] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategories, setSelectedSubcategories] = useState([]);
+  
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const { basicDetails } = route.params || {};
 
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await client.get('/public/categories');
+      setCategories(res.data.categories || []);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const fetchSubcategories = async (categoryId) => {
+    try {
+      const res = await client.get(`/public/subcategories?categoryId=${categoryId}`);
+      setSubcategories(res.data.subcategories || []);
+    } catch (err) {
+      console.error('Failed to fetch subcategories:', err);
+    }
+  };
+
+  const handleCategorySelect = (categoryId) => {
+    setSelectedCategory(categoryId);
+    setSelectedSubcategories([]); // Reset subcategories
+    fetchSubcategories(categoryId);
+  };
+
+  const handleSubcategoryToggle = (subId) => {
+    setSelectedSubcategories(prev => 
+      prev.includes(subId) ? prev.filter(id => id !== subId) : [...prev, subId]
+    );
+  };
+
   const handleSubmit = async () => {
-    if (!selected) return Alert.alert('Error', 'Please select a registration type');
+    if (!selectedCategory) return Alert.alert('Error', 'Please select a service category');
     setLoading(true);
     try {
       const payload = {
@@ -32,7 +66,8 @@ export default function RegistrationTypeScreen({ route }) {
         dateOfBirth: basicDetails.dateOfBirth || undefined,
         bloodGroup: basicDetails.bloodGroup || undefined,
         emergencyContact: basicDetails.emergencyContact || undefined,
-        registrationType: selected,
+        serviceCategory: selectedCategory,
+        serviceSubcategories: selectedSubcategories,
         aadhaar: {
           number: basicDetails.aadhaarNumber || undefined,
         },
@@ -71,33 +106,59 @@ export default function RegistrationTypeScreen({ route }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Choose Your Category</Text>
-      <Text style={styles.subtitle}>Select the type of vendor you are</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Choose Your Expertise</Text>
+      <Text style={styles.subtitle}>Select the primary service you offer</Text>
 
-      <View style={styles.grid}>
-        {REGISTRATION_TYPES.map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={[styles.card, selected === item.key && styles.cardSelected]}
-            onPress={() => setSelected(item.key)}
-          >
-            <Ionicons
-              name={item.icon}
-              size={36}
-              color={selected === item.key ? '#FF6B35' : '#999'}
-            />
-            <Text style={[styles.cardLabel, selected === item.key && styles.cardLabelSelected]}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {fetching ? (
+        <ActivityIndicator size="large" color="#FF6B35" />
+      ) : (
+        <View style={styles.grid}>
+          {categories.map((item) => (
+            <TouchableOpacity
+              key={item._id}
+              style={[styles.card, selectedCategory === item._id && styles.cardSelected]}
+              onPress={() => handleCategorySelect(item._id)}
+            >
+              <Ionicons
+                name={item.image || 'construct'} // Fallback icon
+                size={36}
+                color={selectedCategory === item._id ? '#FF6B35' : '#999'}
+              />
+              <Text style={[styles.cardLabel, selectedCategory === item._id && styles.cardLabelSelected]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {selectedCategory && subcategories.length > 0 && (
+        <View style={styles.subContainer}>
+          <Text style={styles.subTitle}>Select Specific Services</Text>
+          <View style={styles.subGrid}>
+            {subcategories.map((sub) => {
+              const isSelected = selectedSubcategories.includes(sub._id);
+              return (
+                <TouchableOpacity
+                  key={sub._id}
+                  style={[styles.subCard, isSelected && styles.subCardSelected]}
+                  onPress={() => handleSubcategoryToggle(sub._id)}
+                >
+                  <Text style={[styles.subCardLabel, isSelected && styles.subCardLabelSelected]}>
+                    {sub.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <TouchableOpacity
-        style={[styles.submitBtn, !selected && styles.submitBtnDisabled]}
+        style={[styles.submitBtn, (!selectedCategory || selectedSubcategories.length === 0) && styles.submitBtnDisabled]}
         onPress={handleSubmit}
-        disabled={loading || !selected}
+        disabled={loading || !selectedCategory || selectedSubcategories.length === 0}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
@@ -105,13 +166,13 @@ export default function RegistrationTypeScreen({ route }) {
           <Text style={styles.submitBtnText}>Register</Text>
         )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 24, justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '800', color: '#FF6B35', textAlign: 'center' },
+  container: { flexGrow: 1, backgroundColor: '#fff', padding: 24, justifyContent: 'center' },
+  title: { fontSize: 26, fontWeight: '800', color: '#FF6B35', textAlign: 'center', marginTop: 40 },
   subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 32, marginTop: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   card: {
@@ -119,9 +180,21 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginBottom: 16, backgroundColor: '#fafafa',
   },
   cardSelected: { borderColor: '#FF6B35', backgroundColor: '#FFF5F0' },
-  cardLabel: { marginTop: 10, fontSize: 14, fontWeight: '600', color: '#666' },
+  cardLabel: { marginTop: 10, fontSize: 14, fontWeight: '600', color: '#666', textAlign: 'center' },
   cardLabelSelected: { color: '#FF6B35' },
-  submitBtn: { backgroundColor: '#FF6B35', borderRadius: 8, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
+  
+  subContainer: { marginTop: 20 },
+  subTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 16 },
+  subGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  subCard: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
+    backgroundColor: '#eee', marginRight: 10, marginBottom: 10,
+  },
+  subCardSelected: { backgroundColor: '#FF6B35' },
+  subCardLabel: { color: '#666', fontWeight: '600' },
+  subCardLabelSelected: { color: '#fff' },
+
+  submitBtn: { backgroundColor: '#FF6B35', borderRadius: 8, paddingVertical: 16, alignItems: 'center', marginTop: 24, marginBottom: 40 },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
 });

@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 import AvatarImg from '../../../assets/xavier_rock_avatar.png';
 
 export default function AccountScreen({ navigation }) {
+  const { logout } = useAuth();
   const menuItems = [
     { id: '1', title: 'Profile', route: 'Profile', icon: 'person-outline' },
     { id: '2', title: 'Payments & History', route: 'PaymentHistory', icon: 'card-outline' },
@@ -55,10 +57,7 @@ export default function AccountScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => {
                 if (item.route === 'Auth') {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Auth' }],
-                  });
+                  logout();
                 } else {
                   navigation.navigate(item.route);
                 }

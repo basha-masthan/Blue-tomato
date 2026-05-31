@@ -1,12 +1,29 @@
-const VendorService = require('../models/VendorService');
+const Vendor = require('../models/Vendor');
+const Subcategory = require('../models/Subcategory');
+const Category = require('../models/Category');
 
 exports.getServices = async (req, res) => {
   try {
-    const { category } = req.query;
-    const query = { vendor: req.vendor._id, deletedAt: null };
-    if (category) query.category = category;
+    const vendor = await Vendor.findById(req.vendor._id).populate('serviceCategory');
+    if (!vendor || !vendor.serviceCategory) {
+      return res.json({ services: [] });
+    }
 
-    const services = await VendorService.find(query).sort({ createdAt: -1 });
+    const subcategories = await Subcategory.find({ category: vendor.serviceCategory._id, isActive: true });
+    
+    // Convert vendor.serviceSubcategories to an array of strings for easy comparison
+    const vendorSubIds = vendor.serviceSubcategories.map(id => id.toString());
+
+    const services = subcategories.map(sub => ({
+      _id: sub._id,
+      name: sub.name,
+      category: vendor.serviceCategory.name,
+      description: sub.description,
+      price: sub.basePrice, // mapping basePrice to price
+      image: sub.image,
+      isAvailable: vendorSubIds.includes(sub._id.toString()),
+    }));
+
     res.json({ services });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch services', error: error.message });
@@ -14,77 +31,47 @@ exports.getServices = async (req, res) => {
 };
 
 exports.createService = async (req, res) => {
-  try {
-    const { name, category, description, price, priceFrom, priceTo, image, type } = req.body;
-
-    const service = await VendorService.create({
-      vendor: req.vendor._id,
-      name,
-      category,
-      description,
-      price: type === 'food' ? price : undefined,
-      priceFrom: type === 'service' ? priceFrom : undefined,
-      priceTo: type === 'service' ? priceTo : undefined,
-      image,
-      type: type || 'food',
-    });
-
-    res.status(201).json({ message: 'Service created', service });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to create service', error: error.message });
-  }
+  // Creating custom services is no longer allowed based on user request.
+  res.status(403).json({ message: 'Creating custom services is not allowed. Admin manages services.' });
 };
 
 exports.updateService = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const service = await VendorService.findOne({ _id: id, vendor: req.vendor._id, deletedAt: null });
-    if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
-    }
-
-    const allowedFields = ['name', 'category', 'description', 'price', 'priceFrom', 'priceTo', 'image', 'isAvailable'];
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        service[field] = req.body[field];
-      }
-    }
-
-    await service.save();
-    res.json({ message: 'Service updated', service });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update service', error: error.message });
-  }
+  // Updating custom services is no longer allowed.
+  res.status(403).json({ message: 'Updating custom services is not allowed. Admin manages services.' });
 };
 
 exports.toggleAvailability = async (req, res) => {
   try {
-    const { id } = req.params;
-    const service = await VendorService.findOne({ _id: id, vendor: req.vendor._id, deletedAt: null });
-    if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
+    const { id } = req.params; // id of the Subcategory
+    const vendor = await Vendor.findById(req.vendor._id);
+    
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
     }
 
-    service.isAvailable = !service.isAvailable;
-    await service.save();
-    res.json({ message: `Service is now ${service.isAvailable ? 'available' : 'unavailable'}`, service });
+    const subcategoryIdStr = id.toString();
+    const vendorSubIds = vendor.serviceSubcategories.map(subId => subId.toString());
+
+    let isNowAvailable = false;
+
+    if (vendorSubIds.includes(subcategoryIdStr)) {
+      // Remove it
+      vendor.serviceSubcategories = vendor.serviceSubcategories.filter(subId => subId.toString() !== subcategoryIdStr);
+      isNowAvailable = false;
+    } else {
+      // Add it
+      vendor.serviceSubcategories.push(id);
+      isNowAvailable = true;
+    }
+
+    await vendor.save();
+    res.json({ message: `Service is now ${isNowAvailable ? 'available' : 'unavailable'}`, isAvailable: isNowAvailable });
   } catch (error) {
     res.status(500).json({ message: 'Failed to toggle availability', error: error.message });
   }
 };
 
 exports.deleteService = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const service = await VendorService.findOne({ _id: id, vendor: req.vendor._id, deletedAt: null });
-    if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
-    }
-
-    service.deletedAt = new Date();
-    await service.save();
-    res.json({ message: 'Service deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete service', error: error.message });
-  }
+  // Deleting custom services is no longer allowed.
+  res.status(403).json({ message: 'Deleting services is not allowed. Admin manages services.' });
 };

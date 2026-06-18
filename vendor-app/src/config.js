@@ -1,3 +1,3 @@
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.29.236:5000/api/vendor',
+  BASE_URL: 'http://localhost:5000/api/vendor',
 };

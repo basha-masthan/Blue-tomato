@@ -9,7 +9,8 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
     "vendor:seed": "node src/vendor-seed.js",
-    "admin:seed": "node src/admin-seed.js"
+    "admin:seed": "node src/admin-seed.js",
+    "complete-seed": "node src/complete-seed.js"
   },
   "keywords": [],
   "author": "",

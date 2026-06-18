@@ -173,13 +173,13 @@ const serviceBookingSchema = new mongoose.Schema(
 // ─────────────────────────────────────────────
 serviceBookingSchema.index({ userId: 1, createdAt: -1 });
 serviceBookingSchema.index({ providerId: 1, status: 1 });
-serviceBookingSchema.index({ bookingNumber: 1 });
 serviceBookingSchema.index({ scheduledDate: 1, status: 1 });
+// bookingNumber has `unique: true` which auto-creates index
 
 // ─────────────────────────────────────────────
 // Pre-save Hook: Generate booking number + timeline
 // ─────────────────────────────────────────────
-serviceBookingSchema.pre('save', async function (next) {
+serviceBookingSchema.pre('save', async function () {
   if (!this.bookingNumber) {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -190,8 +190,6 @@ serviceBookingSchema.pre('save', async function (next) {
   if (this.isModified('status')) {
     this.statusTimeline.push({ status: this.status, timestamp: new Date() });
   }
-
-  next();
 });
 
 // ─────────────────────────────────────────────

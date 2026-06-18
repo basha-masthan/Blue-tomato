@@ -176,9 +176,8 @@ const userSchema = new mongoose.Schema(
 // ─────────────────────────────────────────────
 // Indexes
 // ─────────────────────────────────────────────
-userSchema.index({ email: 1 });
-userSchema.index({ phone: 1 });
 userSchema.index({ createdAt: -1 });
+// email and phone have `unique: true` which auto-creates indexes — no explicit index needed
 
 // ─────────────────────────────────────────────
 // Virtuals

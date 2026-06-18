@@ -196,13 +196,13 @@ const orderSchema = new mongoose.Schema(
 // ─────────────────────────────────────────────
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ restaurantId: 1, status: 1 });
-orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });
+// orderNumber has `unique: true` which auto-creates index
 
 // ─────────────────────────────────────────────
 // Pre-save Hook: Generate order number + timeline
 // ─────────────────────────────────────────────
-orderSchema.pre('save', async function (next) {
+orderSchema.pre('save', async function () {
   if (!this.orderNumber) {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -213,8 +213,6 @@ orderSchema.pre('save', async function (next) {
   if (this.isModified('status')) {
     this.statusTimeline.push({ status: this.status, timestamp: new Date() });
   }
-
-  next();
 });
 
 // ─────────────────────────────────────────────

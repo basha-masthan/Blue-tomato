@@ -1,7 +1,7 @@
 require('dotenv').config({ path: 'backend/.env' });
 const mongoose = require('mongoose');
-const Category = require('././src/models/Category');
-const Subcategory = require('././src/models/Subcategory');
+const Category = require('./src/models/Category');
+const Subcategory = require('./src/models/Subcategory');
 
 async function seed() {
   try {
